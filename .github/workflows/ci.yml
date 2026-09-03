@@ -84,3 +84,16 @@ jobs:
         run: |
           unzip -p acemq-spring-boot-autoconfigure/target/acemq-spring-boot-autoconfigure-*.jar \
             META-INF/spring-configuration-metadata.json | grep -q '"acemq.url"'
+
+  notify:
+    needs: build
+    # Only when main breaks, and only on main -- a failing pull request is
+    # already in front of the person who wrote it.
+    if: always() && needs.build.result == 'failure' && github.ref == 'refs/heads/main'
+    uses: AceMQ-Company/acemq-java-amqp/.github/workflows/slack-notify.yml@main
+    with:
+      status: ${{ needs.build.result }}
+      title: "AceMQ Spring Boot starter: main is failing"
+      message: "The build on main did not pass. Artifacts from it should not be trusted."
+      url: https://github.com/AceMQ-Company/acemq-java-amqp-spring-boot-starter/actions/workflows/ci.yml
+    secrets: inherit
