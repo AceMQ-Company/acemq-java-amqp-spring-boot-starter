@@ -1,0 +1,23 @@
+AceMQ Spring Boot Starter
+Copyright 2026 AceMQ
+
+This product includes software developed at AceMQ (https://acemq.com).
+
+Licensed under the Apache License, Version 2.0. See LICENSE.
+
+---
+
+Spring and Spring Boot are trademarks of Broadcom Inc. and/or its subsidiaries.
+This project is an independent starter for the AceMQ AMQP library. It is not part
+of the Spring project, is not affiliated with, endorsed by, or sponsored by
+Broadcom, and the word "starter" describes the artifact's shape as the Spring Boot
+documentation defines it.
+
+RabbitMQ is a trademark of Broadcom Inc. and/or its subsidiaries. References to
+RabbitMQ describe compatibility only.
+
+Spring's own artifacts are declared with provided scope: this starter is compiled
+against a Spring Boot line and never brings one of its own into an application.
+
+This product depends on software developed by third parties, each under its own
+licence. The dependencies of a given artifact are listed in its POM.

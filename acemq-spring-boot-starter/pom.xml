@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.acemq</groupId>
+    <artifactId>acemq-spring-boot-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>acemq-spring-boot-starter</artifactId>
+  <packaging>pom</packaging>
+
+  <name>AceMQ Spring Boot Starter</name>
+  <description>One dependency: the auto-configuration, the library, the RabbitMQ transport and
+    the JSON codec.</description>
+
+  <!-- A starter is a pom and nothing else. No code lives here on purpose: the
+       moment a starter carries a class, an application that wanted only the
+       dependencies gets that class as well, and there is nowhere to put its
+       tests. The four below are the answer to "what do I need on the classpath
+       to send a message" — the auto-configuration, the API and core, a
+       transport, and a codec. -->
+  <dependencies>
+    <dependency>
+      <groupId>org.acemq</groupId>
+      <artifactId>acemq-spring-boot-autoconfigure</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.acemq</groupId>
+      <artifactId>acemq-amqp-core</artifactId>
+      <version>${acemq.version}</version>
+    </dependency>
+    <!-- The transport is here rather than in the autoconfigure module because it
+         is the one choice an application might reasonably make differently. Take
+         the autoconfigure module alone and bring your own. -->
+    <dependency>
+      <groupId>org.acemq</groupId>
+      <artifactId>acemq-transport-rabbitmq</artifactId>
+      <version>${acemq.version}</version>
+    </dependency>
+    <!-- JSON, because a starter whose default format is unavailable fails at the
+         first send with a message about a missing codec. Other formats are one
+         dependency away and acemq.format then names them. -->
+    <dependency>
+      <groupId>org.acemq</groupId>
+      <artifactId>acemq-amqp-codec-json</artifactId>
+      <version>${acemq.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter</artifactId>
+    </dependency>
+  </dependencies>
+</project>

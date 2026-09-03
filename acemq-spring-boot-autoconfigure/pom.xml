@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.acemq</groupId>
+    <artifactId>acemq-spring-boot-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>acemq-spring-boot-autoconfigure</artifactId>
+  <packaging>jar</packaging>
+
+  <name>AceMQ Spring Boot AutoConfigure</name>
+  <description>The auto-configuration itself: connection, topology, listeners, health and
+    metrics. Depend on this directly to choose your own transport; most applications want
+    acemq-spring-boot-starter instead.</description>
+
+  <dependencies>
+    <!-- The library. Compile scope, because the auto-configuration builds its
+         types; a consumer that wants a different version can override it, which
+         is the usual reason a starter does not pin one. -->
+    <dependency>
+      <groupId>org.acemq</groupId>
+      <artifactId>acemq-amqp-core</artifactId>
+      <version>${acemq.version}</version>
+    </dependency>
+
+    <!-- Spring, provided: an auto-configuration is only ever on the classpath of
+         an application that already has Boot, and a starter that brings its own
+         Boot version is a support ticket. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-autoconfigure</artifactId>
+      <scope>provided</scope>
+    </dependency>
+
+    <!-- Optional, and every use of them is behind a @ConditionalOnClass. An
+         application without Actuator gets no health indicator and no error. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-actuator</artifactId>
+      <scope>provided</scope>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-core</artifactId>
+      <scope>provided</scope>
+      <optional>true</optional>
+    </dependency>
+
+    <!-- Writes META-INF/spring-configuration-metadata.json, which is what makes
+         acemq.* complete in an IDE. Without it every property is a string
+         somebody has to spell correctly from memory. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-configuration-processor</artifactId>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- The in-memory transport, so the context tests start a real AceMq bean
+         and assert on a running application rather than on a mock. A test that
+         mocked AceMq would pass with the wiring broken. -->
+    <dependency>
+      <groupId>org.acemq</groupId>
+      <artifactId>acemq-amqp-test</artifactId>
+      <version>${acemq.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.acemq</groupId>
+      <artifactId>acemq-transport-rabbitmq</artifactId>
+      <version>${acemq.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- The default format is json, so the tests need the codec that provides it
+         for the same reason the starter ships it: without one on the classpath
+         the first send fails, and a test suite that never sends would not notice. -->
+    <dependency>
+      <groupId>org.acemq</groupId>
+      <artifactId>acemq-amqp-codec-json</artifactId>
+      <version>${acemq.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>rabbitmq</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>

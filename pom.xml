@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>org.acemq</groupId>
+  <artifactId>acemq-spring-boot-parent</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+  <packaging>pom</packaging>
+
+  <name>AceMQ Spring Boot Parent</name>
+  <description>Spring Boot auto-configuration for acemq-java-amqp: one connection, declared
+    topology, annotated listeners, health and metrics, configured from application
+    properties.</description>
+  <url>https://acemq.org/</url>
+
+  <organization>
+    <name>AceMQ</name>
+    <url>https://acemq.com</url>
+  </organization>
+
+  <licenses>
+    <license>
+      <name>Apache License, Version 2.0</name>
+      <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+
+  <developers>
+    <developer>
+      <name>Felipe Gutierrez</name>
+      <organization>AceMQ</organization>
+      <organizationUrl>https://acemq.com</organizationUrl>
+    </developer>
+  </developers>
+
+  <!-- Two modules, which is the Spring Boot convention rather than ceremony.
+       The autoconfigure module carries the code and is a normal jar somebody can
+       depend on directly; the starter is a pom that pulls in the autoconfigure
+       module, the library and a transport, so an application adds one dependency.
+       Splitting them is what lets an application take the auto-configuration
+       without the transport this starter happens to prefer. -->
+  <modules>
+    <module>acemq-spring-boot-autoconfigure</module>
+    <module>acemq-spring-boot-starter</module>
+  </modules>
+
+  <!-- Its own version line, starting at 0.1.0, for the same reason
+       acemq-java-rabbitmq-admin has one: this artifact tracks Spring Boot's
+       release train as much as it tracks AceMQ's, and one number for both would
+       mean a release here every time a codec changed. -->
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+    <!-- Java 17, not the library's 11. Spring Boot 3 requires 17, so a Boot 2.7
+         application cannot use this artifact whatever bytecode it carries, and
+         pretending otherwise would only cost the compile-time checks 17 gives.
+         acemq-java-amqp itself stays on 11 for the applications that are still
+         there; they use the library directly. -->
+    <maven.compiler.release>17</maven.compiler.release>
+    <java.baseline>17</java.baseline>
+
+    <!-- The Boot line this is built and tested against. A starter is compiled
+         against one line and usually runs on the next; what it must never do is
+         drag its own Boot version into an application, so spring-boot-dependencies
+         is imported for management only and every Spring artifact stays
+         provided-scope in the autoconfigure module. -->
+    <spring.boot.version>3.5.7</spring.boot.version>
+    <acemq.version>0.2.10</acemq.version>
+    <testcontainers.version>1.21.4</testcontainers.version>
+
+    <maven.surefire.plugin.version>3.5.2</maven.surefire.plugin.version>
+    <maven.failsafe.plugin.version>3.5.2</maven.failsafe.plugin.version>
+    <maven.javadoc.plugin.version>3.11.2</maven.javadoc.plugin.version>
+  </properties>
+
+  <!-- AceMQ's own artifacts are not on Maven Central before 1.0 (RELEASING.md in
+       acemq-java-amqp has the reasoning), so the repository serving them is
+       declared here. An application using this starter needs the same block,
+       which is the first line of the getting-started page for exactly that
+       reason. -->
+  <repositories>
+    <repository>
+      <id>acemq</id>
+      <url>https://acemq-company.github.io/maven/</url>
+    </repository>
+  </repositories>
+
+  <dependencyManagement>
+    <dependencies>
+      <!-- Before Boot's BOM, and deliberately: the first import wins, and Boot
+           3.5.7 manages Testcontainers 1.21.3, whose docker-java negotiates
+           Docker API 1.32. Docker Desktop's engine reports a minimum of 1.40 and
+           answers that handshake with HTTP 400, which Testcontainers reports as
+           "could not find a valid Docker environment" — a message that sends
+           people to look at their socket, which is fine. 1.21.4 negotiates a
+           version the engine accepts. The other repositories here pin the same. -->
+      <dependency>
+        <groupId>org.testcontainers</groupId>
+        <artifactId>testcontainers-bom</artifactId>
+        <version>${testcontainers.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-dependencies</artifactId>
+        <version>${spring.boot.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <version>${maven.surefire.plugin.version}</version>
+          <configuration>
+            <excludes>
+              <exclude>**/*IT.java</exclude>
+            </excludes>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-failsafe-plugin</artifactId>
+          <version>${maven.failsafe.plugin.version}</version>
+          <executions>
+            <execution>
+              <goals>
+                <goal>integration-test</goal>
+                <goal>verify</goal>
+              </goals>
+            </execution>
+          </executions>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-javadoc-plugin</artifactId>
+          <version>${maven.javadoc.plugin.version}</version>
+          <configuration>
+            <doclint>all,-missing</doclint>
+            <quiet>true</quiet>
+          </configuration>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+  </build>
+</project>
