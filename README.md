@@ -4,9 +4,9 @@ Spring Boot auto-configuration for [acemq-java-amqp](https://github.com/AceMQ-Co
 one connection, a declared topology, annotated listeners, health and metrics — configured
 from `application.yaml` and nothing else.
 
-> **Status: working, unreleased.** 42 unit tests and 3 integration tests against RabbitMQ 4
-> in Testcontainers, run on Spring Boot 3.5.7, 4.0.6 and 4.1.0. Nothing is published
-> anywhere yet.
+> **Status: `0.1.0`, published.** 42 unit tests and 3 integration tests against
+> RabbitMQ 4 in Testcontainers, run on Spring Boot 3.5.7, 4.0.6 and 4.1.0.
+> Artifacts are on the [Maven repository](https://acemq-company.github.io/maven/).
 
 ```yaml
 acemq:
@@ -101,9 +101,9 @@ dependency rather than creating one.
 
 ## Documentation
 
-Seven guide pages and five tutorials, in [docs/](docs/). They read as markdown here and
-render to a site with `.github/scripts/build-docs-site.sh`, which the `docs.yml` workflow
-publishes once this repository has a remote.
+Seven guide pages and five tutorials, published at
+**<https://acemq.org/acemq-java-amqp-spring-boot-starter/>**. They read as markdown in
+[docs/](docs/) too, and render with `.github/scripts/build-docs-site.sh`.
 
 | | |
 |---|---|
@@ -149,14 +149,13 @@ mvn -pl acemq-spring-boot-autoconfigure \
     -Dmaven.compiler.release=11 -Dmaven.compiler.testRelease=17 test
 ```
 
-Two things stand between that and a claim:
+The health module is compiled at Java 11 as well, and verified against
+`spring-boot-actuator` 2.7.18 as well as 3.5.7 — Boot 2.7 and Boot 3 share that health API,
+so one module serves both.
 
-- **The health module is Java 17 bytecode**, so it would fail to load on a Java 11 runtime.
-  Boot 2.7's health API is in the same package as Boot 3's, so one module could serve both
-  lines if it were compiled at 11 — a decision, not a port.
-- **It has not been executed on a Java 11 JVM.** What is verified is the bytecode target
-  and the Boot 2.7 API surface, both on a 21 toolchain. A Boot 2.7 application on Java 17
-  is the configuration with no known gap.
+One thing stands between that and a claim: **it has not been executed on a Java 11 JVM.**
+What is verified is the bytecode target and the Boot 2.7 API surface, both on a 21
+toolchain. A Boot 2.7 application on Java 17 is the configuration with no known gap.
 
 Boot 2.7 reached open-source end of life, so applications still on it are precisely the
 ones that cannot move. That this works is worth knowing before deciding what to support.
