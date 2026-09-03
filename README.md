@@ -128,9 +128,38 @@ happens next.
 
 ## Requirements
 
-Java 17, and Spring Boot 3 or 4. Built and tested against 3.5.7, 4.0.6 and 4.1.0. The
-library itself is Java 11 bytecode and works on Boot 2.7 — an application still there can
-use `acemq-amqp-core` directly, without this starter.
+Java 17, and Spring Boot 3 or 4. Built and tested against 3.5.7, 4.0.6 and 4.1.0.
+
+### Spring Boot 2.7
+
+Not a supported configuration yet, but closer than expected, and the measurement is worth
+recording rather than re-deriving.
+
+The auto-configure module **compiles at Java 11 bytecode and passes its full suite (31
+tests) against Boot 2.7.18** with no source changes. Nothing had to be ported because
+`acemq-amqp-core` is deliberately namespace-free — this module has zero `javax.*` and zero
+`jakarta.*` imports — and every Spring API it uses (`@AutoConfiguration`, the
+`@ConditionalOn*` family, `@ConfigurationProperties`, `SmartLifecycle`,
+`BeanPostProcessor`) exists in Spring 5.3 and Boot 2.7. The
+`AutoConfiguration.imports` file format is Boot 2.7+ as well.
+
+```bash
+mvn -pl acemq-spring-boot-autoconfigure \
+    -Dspring.boot.version=2.7.18 \
+    -Dmaven.compiler.release=11 -Dmaven.compiler.testRelease=17 test
+```
+
+Two things stand between that and a claim:
+
+- **The health module is Java 17 bytecode**, so it would fail to load on a Java 11 runtime.
+  Boot 2.7's health API is in the same package as Boot 3's, so one module could serve both
+  lines if it were compiled at 11 — a decision, not a port.
+- **It has not been executed on a Java 11 JVM.** What is verified is the bytecode target
+  and the Boot 2.7 API surface, both on a 21 toolchain. A Boot 2.7 application on Java 17
+  is the configuration with no known gap.
+
+Boot 2.7 reached open-source end of life, so applications still on it are precisely the
+ones that cannot move. That this works is worth knowing before deciding what to support.
 
 Docker for the integration tests.
 
