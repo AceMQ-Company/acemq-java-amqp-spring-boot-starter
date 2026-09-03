@@ -13,10 +13,27 @@
   <artifactId>acemq-spring-boot-health-boot3</artifactId>
   <packaging>jar</packaging>
 
-  <name>AceMQ Spring Boot Health (Boot 3)</name>
-  <description>The health indicator for Spring Boot 3, whose health API lives in
+  <name>AceMQ Spring Boot Health (Boot 2.7 and 3)</name>
+  <description>The health indicator for Spring Boot 2.7 and 3, which share a health API in
     spring-boot-actuator under org.springframework.boot.actuate.health. Inert on Boot 4, where
     that package does not exist.</description>
+
+  <properties>
+    <!-- Java 11 bytecode, not the parent's 17, and the reason is the runtime rather
+         than the compiler. Boot 2.7 applications are frequently still on Java 11, and
+         a Java 11 JVM refuses any class file newer than major 55 - so a module built
+         at 17 fails to load with UnsupportedClassVersionError before any condition on
+         it is ever evaluated. Nothing here needs a Java 17 language feature.
+
+         Verified against spring-boot-actuator 2.7.18 as well as 3.5.7: the health
+         contributor API is binary compatible across both, which is what lets one
+         module serve two Boot lines. The compiler's release flag constrains the JDK
+         API, not third party jars, so that compatibility is a fact to be tested
+         rather than assumed, and there is a CI dimension for it. -->
+    <maven.compiler.release>11</maven.compiler.release>
+    <!-- Tests stay at 17: they use records, and they only ever run on the build JDK. -->
+    <maven.compiler.testRelease>17</maven.compiler.testRelease>
+  </properties>
 
   <dependencies>
     <dependency>
