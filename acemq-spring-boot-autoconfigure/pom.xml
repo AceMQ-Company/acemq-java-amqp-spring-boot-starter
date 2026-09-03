@@ -14,9 +14,9 @@
   <packaging>jar</packaging>
 
   <name>AceMQ Spring Boot AutoConfigure</name>
-  <description>The auto-configuration itself: connection, topology, listeners, health and
-    metrics. Depend on this directly to choose your own transport; most applications want
-    acemq-spring-boot-starter instead.</description>
+  <description>The auto-configuration itself: connection, topology, listeners and metrics.
+    Health lives in the two per-Boot-line health modules. Depend on this directly to choose
+    your own transport; most applications want acemq-spring-boot-starter instead.</description>
 
   <dependencies>
     <!-- The library. Compile scope, because the auto-configuration builds its
@@ -42,14 +42,11 @@
       <scope>provided</scope>
     </dependency>
 
-    <!-- Optional, and every use of them is behind a @ConditionalOnClass. An
-         application without Actuator gets no health indicator and no error. -->
-    <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-actuator</artifactId>
-      <scope>provided</scope>
-      <optional>true</optional>
-    </dependency>
+    <!-- Optional, and every use is behind a @ConditionalOnClass, so an application
+         without Micrometer gets the library's own telemetry detection and no error.
+         There is no actuator dependency here: health lives in the two health
+         modules, one per Boot line, which is what keeps this module compiling and
+         running unchanged on both. -->
     <dependency>
       <groupId>io.micrometer</groupId>
       <artifactId>micrometer-core</artifactId>

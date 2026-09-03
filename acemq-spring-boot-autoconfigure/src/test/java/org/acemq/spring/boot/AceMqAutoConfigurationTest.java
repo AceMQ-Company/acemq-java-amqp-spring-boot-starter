@@ -25,7 +25,6 @@ import org.acemq.amqp.core.AceMq;
 import org.acemq.amqp.transport.ConnectionConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
-import org.springframework.boot.actuate.health.Status;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -121,25 +120,6 @@ class AceMqAutoConfigurationTest {
             // telemetry bean is the Micrometer one and the connection was given it.
             assertThat(registry.getMeters()).isNotEmpty();
         });
-    }
-
-    @Test
-    void reportsHealth() {
-        runner.run(context -> {
-            assertThat(context).hasSingleBean(AceMqHealthIndicator.class);
-            assertThat(context.getBean(AceMqHealthIndicator.class).health().getStatus())
-                    .isEqualTo(Status.UP);
-            assertThat(context.getBean(AceMqHealthIndicator.class).health().getDetails())
-                    .containsEntry("open", true)
-                    .containsEntry("blocked", false)
-                    .containsKey("transport");
-        });
-    }
-
-    @Test
-    void healthCanBeTurnedOff() {
-        runner.withPropertyValues("management.health.acemq.enabled=false")
-                .run(context -> assertThat(context).doesNotHaveBean(AceMqHealthIndicator.class));
     }
 
     @Test

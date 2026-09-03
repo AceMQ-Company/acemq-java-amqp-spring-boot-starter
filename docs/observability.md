@@ -5,7 +5,10 @@ already has, and counters on each listener.
 
 ## Health
 
-With Actuator on the classpath, `AceMqHealthIndicator` is registered automatically.
+With Actuator on the classpath, the health indicator is registered automatically — on
+Spring Boot 3 and Spring Boot 4 alike. The starter ships one small module per line and
+activates whichever matches; see [one artifact, both Boot lines](index.md#one-artifact-both-boot-lines)
+for why that is two modules rather than one class.
 
 ```json
 {

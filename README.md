@@ -4,8 +4,9 @@ Spring Boot auto-configuration for [acemq-java-amqp](https://github.com/AceMQ-Co
 one connection, a declared topology, annotated listeners, health and metrics — configured
 from `application.yaml` and nothing else.
 
-> **Status: working, unreleased.** 33 unit tests and 4 integration tests against RabbitMQ 4
-> in Testcontainers. Nothing is published anywhere yet.
+> **Status: working, unreleased.** 42 unit tests and 3 integration tests against RabbitMQ 4
+> in Testcontainers, run on Spring Boot 3.5.7, 4.0.6 and 4.1.0. Nothing is published
+> anywhere yet.
 
 ```yaml
 acemq:
@@ -48,12 +49,22 @@ annotation for the other direction.
 
 ## Installing
 
-Two modules are published:
+Four modules are published:
 
 | Artifact | What it is |
 |---|---|
-| `acemq-spring-boot-starter` | The dependency an application adds: the auto-configuration, the library, the RabbitMQ transport and the JSON codec |
+| `acemq-spring-boot-starter` | The dependency an application adds: the auto-configuration, both health modules, the library, the RabbitMQ transport and the JSON codec |
 | `acemq-spring-boot-autoconfigure` | The auto-configuration alone, for an application that brings its own transport or codec |
+| `acemq-spring-boot-health-boot3` | The health indicator for Spring Boot 3 |
+| `acemq-spring-boot-health-boot4` | The health indicator for Spring Boot 4 |
+
+**One starter serves Spring Boot 3 and Spring Boot 4.** Everything but health is
+source-compatible across the two lines; health is not, because Boot 4 moved the contributor
+API from `spring-boot-actuator`'s `org.springframework.boot.actuate.health` to
+`spring-boot-health`'s `org.springframework.boot.health.contributor`, and the two
+`AbstractHealthIndicator` classes share no ancestor. Both health modules ship, each guarded
+by a `@ConditionalOnClass` on its own line's API, and exactly one ever matches. Nothing to
+choose and nothing to configure.
 
 ```xml
 <repositories>
@@ -82,7 +93,7 @@ The repository block is needed because AceMQ is not on Maven Central before 1.0.
 | `Telemetry` | Always | Micrometer when a `MeterRegistry` is in the context, otherwise the library's auto-detection |
 | `AceListenerRegistry` | Always | Starts and stops `@AceListener` methods; hand it a listener id to scale, pause or read counters |
 | `AceMqTopologyInitializer` | Always | Applies `acemq.topology`, and does nothing when nothing is declared |
-| `AceMqHealthIndicator` | Actuator on the classpath | Reports the connection under `/actuator/health` |
+| `AceMqHealthIndicator` | Actuator on the classpath | Reports the connection under `/actuator/health`; Boot 3 and Boot 4 each have their own |
 
 Every one is `@ConditionalOnMissingBean`. Define your own `AceMq` and the rest of the
 starter keeps working against it, because everything else takes the connection as a
@@ -117,8 +128,9 @@ happens next.
 
 ## Requirements
 
-Java 17 and Spring Boot 3. The library itself is Java 11 bytecode and works on Boot 2.7 —
-an application still there can use `acemq-amqp-core` directly, without this starter.
+Java 17, and Spring Boot 3 or 4. Built and tested against 3.5.7, 4.0.6 and 4.1.0. The
+library itself is Java 11 bytecode and works on Boot 2.7 — an application still there can
+use `acemq-amqp-core` directly, without this starter.
 
 Docker for the integration tests.
 

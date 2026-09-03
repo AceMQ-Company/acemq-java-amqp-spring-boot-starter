@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.acemq</groupId>
+    <artifactId>acemq-spring-boot-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>acemq-spring-boot-health-boot4</artifactId>
+  <packaging>jar</packaging>
+
+  <name>AceMQ Spring Boot Health (Boot 4)</name>
+  <description>The health indicator for Spring Boot 4, whose health API moved out of
+    spring-boot-actuator into spring-boot-health under org.springframework.boot.health.contributor.
+    Inert on Boot 3, where that package does not exist.</description>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.acemq</groupId>
+      <artifactId>acemq-amqp-core</artifactId>
+      <version>${acemq.version}</version>
+      <scope>provided</scope>
+    </dependency>
+
+    <!-- Every version here is explicit rather than managed. The reactor's
+         dependencyManagement imports Boot 3's BOM, and a managed version would
+         silently compile this module against the line it exists to not be. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot</artifactId>
+      <version>${spring.boot4.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-autoconfigure</artifactId>
+      <version>${spring.boot4.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <!-- Boot 4 split the health contributor API out of the actuator into its own
+         artifact. That split is the entire reason this module exists. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-health</artifactId>
+      <version>${spring.boot4.version}</version>
+      <scope>provided</scope>
+    </dependency>
+
+    <!-- provided-scope dependencies are already on the test classpath, so the
+         library and the health API are not repeated here. Declaring the same
+         artifact twice in one POM is not an override: the last declaration wins,
+         which would have made them test-only and broken the compile. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <version>${spring.boot4.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.acemq</groupId>
+      <artifactId>acemq-amqp-test</artifactId>
+      <version>${acemq.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.acemq</groupId>
+      <artifactId>acemq-amqp-codec-json</artifactId>
+      <version>${acemq.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.acemq</groupId>
+      <artifactId>acemq-spring-boot-autoconfigure</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>

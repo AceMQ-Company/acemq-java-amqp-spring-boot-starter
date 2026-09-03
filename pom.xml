@@ -41,10 +41,21 @@
        depend on directly; the starter is a pom that pulls in the autoconfigure
        module, the library and a transport, so an application adds one dependency.
        Splitting them is what lets an application take the auto-configuration
-       without the transport this starter happens to prefer. -->
+       without the transport this starter happens to prefer.
+
+       The two health modules are a third thing, and they exist because Spring Boot
+       4 moved the health contributor API out of spring-boot-actuator
+       (org.springframework.boot.actuate.health) into spring-boot-health
+       (org.springframework.boot.health.contributor). The two AbstractHealthIndicator
+       classes share no ancestor, so one class cannot extend both. Each module is
+       compiled against its own line and carries a @ConditionalOnClass, both ship in
+       the starter, and exactly one ever matches. -->
   <modules>
     <module>acemq-spring-boot-autoconfigure</module>
+    <module>acemq-spring-boot-health-boot3</module>
+    <module>acemq-spring-boot-health-boot4</module>
     <module>acemq-spring-boot-starter</module>
+    <module>acemq-spring-boot-starter-tests</module>
   </modules>
 
   <!-- Its own version line, starting at 0.1.0, for the same reason
@@ -69,6 +80,13 @@
          is imported for management only and every Spring artifact stays
          provided-scope in the autoconfigure module. -->
     <spring.boot.version>3.5.7</spring.boot.version>
+
+    <!-- Fixed, and deliberately not the property above. spring.boot.version is
+         overridden in CI to build the shared modules against another line; these
+         two name the line each health module is compiled against, and overriding
+         either would compile a module against the Boot it exists to not be. -->
+    <spring.boot3.version>3.5.7</spring.boot3.version>
+    <spring.boot4.version>4.1.0</spring.boot4.version>
     <acemq.version>0.2.10</acemq.version>
     <testcontainers.version>1.21.4</testcontainers.version>
 

@@ -37,8 +37,13 @@ import org.springframework.core.env.Environment;
  *
  * <p>What an application gets: an {@link AceMq} connection, the codec named by
  * {@code acemq.format}, telemetry through Micrometer when a registry is present, the
- * declared topology applied once, {@link AceListener} methods consuming, and a health
- * indicator when Actuator is on the classpath.
+ * declared topology applied once, and {@link AceListener} methods consuming.
+ *
+ * <p>The health indicator is not here. It lives in {@code acemq-spring-boot-health-boot3}
+ * and {@code acemq-spring-boot-health-boot4}, one per Spring Boot line, because Boot 4
+ * moved the health contributor API to a different package in a different artifact. Both are
+ * on the classpath when the starter is used, and exactly one of them ever matches. This
+ * module itself compiles and runs unchanged on both lines.
  *
  * <p>Every bean is {@code @ConditionalOnMissingBean}. Defining your own {@code AceMq} bean
  * -- two connections, a transport this starter does not know about, a wrapper -- replaces
@@ -210,27 +215,4 @@ public class AceMqAutoConfiguration {
         }
     }
 
-    /**
-     * The health indicator, when Actuator is present.
-     *
-     * <p>Its own configuration class for the same reason the Micrometer one is: the
-     * condition has to sit on something that can be skipped whole, because the class's own
-     * signatures are resolved before any method-level condition is read.
-     */
-    @Configuration(proxyBeanMethods = false)
-    @ConditionalOnClass(name = "org.springframework.boot.actuate.health.HealthIndicator")
-    @ConditionalOnProperty(prefix = "management.health.acemq", name = "enabled",
-            havingValue = "true", matchIfMissing = true)
-    public static class Actuator {
-
-        /**
-         * @param aceMq the connection
-         * @return the health indicator
-         */
-        @Bean
-        @ConditionalOnMissingBean(name = "aceMqHealthIndicator")
-        public AceMqHealthIndicator aceMqHealthIndicator(AceMq aceMq) {
-            return new AceMqHealthIndicator(aceMq);
-        }
-    }
 }

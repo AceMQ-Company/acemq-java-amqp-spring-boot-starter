@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.acemq</groupId>
+    <artifactId>acemq-spring-boot-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>acemq-spring-boot-starter-tests</artifactId>
+  <packaging>jar</packaging>
+
+  <name>AceMQ Spring Boot Starter Tests</name>
+  <description>Not published. Starts a real application context with exactly what the starter
+    puts on a classpath — both health modules included — on whichever Spring Boot line
+    ${spring.boot.version} names.</description>
+
+  <!-- Nothing here is deployed: this module exists to be run, on both lines, by the
+       CI matrix. The other modules each see one Boot line and one health module, so
+       none of them can answer the question this one exists for: does an application
+       start when the jar for the *other* line is also on its classpath. -->
+  <properties>
+    <maven.deploy.skip>true</maven.deploy.skip>
+    <maven.install.skip>true</maven.install.skip>
+  </properties>
+
+  <dependencies>
+    <!-- The starter itself, which is the point: whatever it drags in is what an
+         application gets, and that includes both health modules. -->
+    <dependency>
+      <groupId>org.acemq</groupId>
+      <artifactId>acemq-spring-boot-starter</artifactId>
+      <version>${project.version}</version>
+      <type>pom</type>
+    </dependency>
+    <dependency>
+      <groupId>org.acemq</groupId>
+      <artifactId>acemq-amqp-test</artifactId>
+      <version>${acemq.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <version>${spring.boot.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- The health endpoint's own machinery, so the assertion is about a real
+         /actuator/health contributor rather than about a bean of a name. Its
+         artifact differs by line, so both are declared optional-by-absence: Maven
+         resolves whichever version exists for the line being built. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+      <version>${spring.boot.version}</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>

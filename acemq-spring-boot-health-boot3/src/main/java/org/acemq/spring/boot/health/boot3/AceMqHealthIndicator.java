@@ -13,14 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.acemq.spring.boot;
+package org.acemq.spring.boot.health.boot3;
 
 import org.acemq.amqp.core.AceMq;
 import org.springframework.boot.actuate.health.AbstractHealthIndicator;
 import org.springframework.boot.actuate.health.Health;
+import org.springframework.boot.actuate.health.Status;
 
 /**
- * Reports the connection under {@code /actuator/health}.
+ * Reports the connection under {@code /actuator/health}, on Spring Boot 3.
  *
  * <p>Down means the connection is not open. A broker applying back pressure is reported as
  * <em>up, with the reason</em>, and that is a deliberate choice: a blocked connection is the
@@ -30,6 +31,10 @@ import org.springframework.boot.actuate.health.Health;
  *
  * <p>The details are the four facts worth having in an incident: whether it is open, whether
  * it is blocked and why, how many publishes are in flight, and which transport this is.
+ *
+ * <p>There is a line-for-line twin of this class in {@code acemq-spring-boot-health-boot4}.
+ * The duplication is deliberate: Boot 4 moved the health API to a different package in a
+ * different artifact, and the two supertypes have no common ancestor to share.
  */
 public class AceMqHealthIndicator extends AbstractHealthIndicator {
 
@@ -43,8 +48,7 @@ public class AceMqHealthIndicator extends AbstractHealthIndicator {
     @Override
     protected void doHealthCheck(Health.Builder builder) {
         boolean open = aceMq.isOpen();
-        builder.status(open ? org.springframework.boot.actuate.health.Status.UP
-                        : org.springframework.boot.actuate.health.Status.DOWN)
+        builder.status(open ? Status.UP : Status.DOWN)
                 .withDetail("transport", aceMq.transportName())
                 .withDetail("open", open)
                 .withDetail("blocked", aceMq.isBlocked())

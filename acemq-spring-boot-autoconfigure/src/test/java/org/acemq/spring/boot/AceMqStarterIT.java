@@ -95,14 +95,6 @@ class AceMqStarterIT {
         });
     }
 
-    @Test
-    void reportsHealthAgainstARealConnection() {
-        runner().run(context -> assertThat(
-                        context.getBean(AceMqHealthIndicator.class).health().getDetails())
-                .containsEntry("open", true)
-                .containsEntry("transport", "rabbitmq"));
-    }
-
     /**
      * VALIDATE refuses to create. An application configured this way against a broker that
      * has not been provisioned fails at startup with the plan, which is the point: the

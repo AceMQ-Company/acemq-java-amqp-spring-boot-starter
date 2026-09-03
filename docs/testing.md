@@ -164,3 +164,27 @@ class OrderListener {
 Awaitility works as well and reads better for a condition that is not a single event. A
 `Thread.sleep(200)` passes on a laptop and fails on a loaded CI runner, which is the worst
 of the three outcomes because it fails intermittently.
+
+## Testing on both Boot lines
+
+This starter works on Spring Boot 3 and Spring Boot 4, and the only test that catches a
+break in that claim is one that starts a real context with the real classpath, once per
+line. The repository does it with a module whose Boot version comes from a property:
+
+```bash
+mvn verify                                # Spring Boot 3.5.7, the default
+mvn verify -Dspring.boot.version=4.1.0    # Spring Boot 4.1.0
+```
+
+and a CI matrix that runs both.
+
+A test that imports the auto-configurations explicitly cannot find that class of failure,
+because importing a class is what loads it — and not loading it is precisely what the
+class-condition mechanism does. The bug this caught here was real: the two health modules
+originally shared fully-qualified class names, so the first jar on the classpath won, its
+condition evaluated false on the other line, and an application on Boot 4 came up healthy,
+green, and with no AceMQ health indicator at all.
+
+The same applies to anything you write with a `@ConditionalOnClass` on a type your own
+module does not always have. `ApplicationContextRunner` is the right tool for most
+auto-configuration tests and the wrong one for this one.

@@ -51,6 +51,22 @@
       <version>${acemq.version}</version>
     </dependency>
 
+    <!-- Both health modules, one per Spring Boot line. Each is a single
+         auto-configuration and a single indicator, guarded by a @ConditionalOnClass
+         on the health API of its line; the packages never coexist, so exactly one
+         matches and the other is inert bytes. This is what lets one starter serve
+         Boot 3 and Boot 4. -->
+    <dependency>
+      <groupId>org.acemq</groupId>
+      <artifactId>acemq-spring-boot-health-boot3</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.acemq</groupId>
+      <artifactId>acemq-spring-boot-health-boot4</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter</artifactId>
