@@ -1,0 +1,67 @@
+# Build and test, on every JDK this starter promises to build on.
+#
+# Integration tests need Docker, which ubuntu-latest has, so `verify` is the goal
+# rather than `test`: an auto-configuration that is only unit-tested proves the
+# beans exist, not that a broker accepts what they declare.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build on JDK ${{ matrix.java }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 17 is Spring Boot 3's minimum and this artifact's baseline; 21 is what
+        # most new Boot applications run on; 25 is the newest release.
+        java: ['17', '21', '25']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: maven
+
+      - name: Build and test
+        run: mvn -B --no-transfer-progress clean verify
+
+      - name: Verify the bytecode targets Java 17
+        if: matrix.java == '17'
+        run: |
+          class=$(unzip -p acemq-spring-boot-autoconfigure/target/acemq-spring-boot-autoconfigure-*.jar \
+                  org/acemq/spring/boot/AceListener.class | xxd -p -l 8 | cut -c13-16)
+          echo "class file major version: 0x$class (expected 003d = 61 = Java 17)"
+          test "$class" = "003d"
+
+      - name: Verify the auto-configuration is registered
+        if: matrix.java == '17'
+        # A starter whose AutoConfiguration.imports is missing or misspelled is a
+        # starter that configures nothing, and every test here would still pass
+        # because they import the class explicitly.
+        run: |
+          unzip -p acemq-spring-boot-autoconfigure/target/acemq-spring-boot-autoconfigure-*.jar \
+            META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports \
+            | grep -qx 'org.acemq.spring.boot.AceMqAutoConfiguration'
+
+      - name: Verify the configuration metadata was generated
+        if: matrix.java == '17'
+        # Without it, acemq.* does not complete in an IDE and every property is a
+        # string somebody has to spell from memory.
+        run: |
+          unzip -p acemq-spring-boot-autoconfigure/target/acemq-spring-boot-autoconfigure-*.jar \
+            META-INF/spring-configuration-metadata.json | grep -q '"acemq.url"'
