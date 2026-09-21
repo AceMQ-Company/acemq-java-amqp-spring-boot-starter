@@ -1,0 +1,272 @@
+# Publish a release into the Git-hosted Maven repository at AceMQ-Company/maven,
+# served over GitHub Pages at https://acemq.org/maven/.
+#
+# Triggered by a tag:  git tag -a v0.1.1 -m 0.1.1 && git push origin v0.1.1
+#
+# Why this exists. 0.1.0 is on the feed and was put there by somebody running
+# `mvn deploy` from their own machine, because this repository had no release
+# workflow at all -- the tag published nothing. That release happens to be
+# complete, checked artifact by artifact, but nothing verified it at the time,
+# nothing recorded what was built or with which JDK, and it could not be
+# reproduced. A tag that publishes nothing is worse than no tag: it looks like
+# a release.
+#
+# The deploy key. The built-in GITHUB_TOKEN is scoped to this repository, so it
+# cannot write to AceMQ-Company/maven. MAVEN_REPO_DEPLOY_KEY is a deploy key
+# with write access to that one repository and nothing else in the
+# organisation, which a personal access token cannot express. It belongs to the
+# repository rather than to a person, and it does not expire.
+#
+# Rotating it: generate a key pair, replace the deploy key under
+# AceMQ-Company/maven -> Settings -> Deploy keys, then update the secret here.
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish, without the leading v (e.g. 0.1.1)'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          # 17 is this starter's baseline, and Boot 3 and Boot 4 are both built
+          # from here. Releasing on a newer JDK would publish bytecode that the
+          # pull requests were never held to.
+          java-version: '17'
+          cache: maven
+
+      - name: Check the credentials the publish needs
+        # Before the suite rather than after it. Without the key nothing can be
+        # published, and discovering that after a Boot 3 and Boot 4 matrix has
+        # run reports it as a checkout failure against another repository --
+        # which reads like the feed is broken rather than like a missing secret.
+        env:
+          MAVEN_REPO_DEPLOY_KEY: ${{ secrets.MAVEN_REPO_DEPLOY_KEY }}
+        run: |
+          if [ -z "$MAVEN_REPO_DEPLOY_KEY" ]; then
+            echo "::error::MAVEN_REPO_DEPLOY_KEY is not set on this repository. It is the"
+            echo "::error::deploy key with write access to AceMQ-Company/maven, and without"
+            echo "::error::it nothing can be published."
+            exit 1
+          fi
+          echo "the feed deploy key is present"
+
+      - name: Work out the version
+        id: version
+        env:
+          # Through the environment rather than interpolated into the script. A
+          # tag name and a dispatch input are both caller-controlled text, and
+          # inlining either one lets whoever writes it run shell here.
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            VERSION="$INPUT_VERSION"
+          else
+            VERSION="${TAG_NAME#v}"
+          fi
+          # An allow-list, not a deny-list. The version is concatenated into a
+          # Maven argument and a commit message, so anything that is not plainly
+          # a version number is refused rather than escaped.
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$'; then
+            echo "::error::not a release version: '$VERSION'"
+            exit 1
+          fi
+          case "$VERSION" in
+            *SNAPSHOT*)
+              echo "::error::refusing to publish a SNAPSHOT to the release repository: $VERSION"
+              exit 1
+              ;;
+          esac
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "publishing $VERSION"
+
+      - name: Check the changelog records this version
+        # A release whose changelog still says [Unreleased] documents itself as
+        # containing nothing released, which is the one question a changelog
+        # exists to answer. This repository shipped 0.1.0 in exactly that state.
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          if ! grep -qE "^## \[$VERSION\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no [$VERSION] section. Roll [Unreleased] into it first."
+            exit 1
+          fi
+          echo "CHANGELOG.md records $VERSION"
+
+      - name: Build and test
+        # The full build, which for this repository means the autoconfiguration
+        # and both health modules, plus the starter-tests module that runs a
+        # real @SpringBootTest against every supported Boot line. That module
+        # sets maven.deploy.skip, so it is built and run here and published
+        # nowhere.
+        run: mvn -B --no-transfer-progress verify
+
+      - name: Check nothing skipped
+        # A suite that skipped everything reports the same green as one that
+        # passed everything. Placed above the checkout of the Maven repository
+        # so a skip stops the release while nothing has been published.
+        run: |
+          skipped=$(find . -path '*/target/*-reports/TEST-*.xml' \
+            -exec grep -ho 'skipped="[0-9]*"' {} + \
+            | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')
+          if [ "$skipped" != "0" ]; then
+            echo "::error::$skipped test(s) skipped during a release"
+            grep -rl 'skipped="[1-9]' --include='TEST-*.xml' . || true
+            exit 1
+          fi
+          total=$(find . -path '*/target/*-reports/TEST-*.xml' \
+            -exec grep -ho 'tests="[0-9]*"' {} + \
+            | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')
+          # A floor as well as a skip count: a run that collected nothing at all
+          # has no skips to find and would otherwise pass this step.
+          if [ "$total" -lt 20 ]; then
+            echo "::error::only $total tests ran; expected at least 20"
+            exit 1
+          fi
+          echo "$total tests ran, none skipped"
+
+      - name: Check out the Maven repository
+        uses: actions/checkout@v4
+        with:
+          repository: AceMQ-Company/maven
+          # A deploy key rather than a token: write access to this repository
+          # alone, and to nothing else in the organisation.
+          ssh-key: ${{ secrets.MAVEN_REPO_DEPLOY_KEY }}
+          path: maven-repo
+
+      - name: Deploy into it
+        # Cloned first, then deployed into, so maven-metadata.xml merges with
+        # what is already published. Deploying into an empty directory would
+        # rewrite the metadata with only this version, leaving earlier releases
+        # on disk but invisible to anything that reads it.
+        #
+        # versions:set covers every module from the aggregator, so the parent,
+        # the autoconfiguration, both health modules and the starter pom all
+        # take the tag's version together. Nothing committed names the version
+        # being released, so the tag and the artifacts cannot disagree.
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          mvn -B --no-transfer-progress versions:set \
+            -DnewVersion="$VERSION" -DgenerateBackupPoms=false
+          mvn -B --no-transfer-progress -DskipTests -DskipITs \
+            -Djacoco.skip=true \
+            deploy -DaltDeploymentRepository="acemq::default::file://$GITHUB_WORKSPACE/maven-repo"
+
+      - name: Check every published module actually landed
+        # The starter is five artifacts, not one, and a consumer who adds the
+        # starter gets all of them. Deploying four of five leaves a release that
+        # resolves until somebody reaches the missing one, so this counts them
+        # in the tree before anything is pushed. starter-tests is absent by
+        # design -- it sets maven.deploy.skip -- and its absence is asserted
+        # rather than assumed.
+        working-directory: maven-repo
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          missing=""
+          for artifact in acemq-spring-boot-parent acemq-spring-boot-starter \
+                          acemq-spring-boot-autoconfigure \
+                          acemq-spring-boot-health-boot3 acemq-spring-boot-health-boot4; do
+            if [ ! -f "org/acemq/$artifact/$VERSION/$artifact-$VERSION.pom" ]; then
+              missing="$missing $artifact"
+            fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::these modules did not reach the feed:$missing"
+            exit 1
+          fi
+          if [ -d "org/acemq/acemq-spring-boot-starter-tests/$VERSION" ]; then
+            echo "::error::acemq-spring-boot-starter-tests was published; it sets maven.deploy.skip and must not be"
+            exit 1
+          fi
+          echo "all five modules are present, and the test module is not"
+
+      - name: Commit and push
+        # Everything before this leaves the feed untouched; everything after is
+        # operating on a version consumers can already resolve.
+        working-directory: maven-repo
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          git config user.name "acemq-release"
+          git config user.email "noreply@acemq.org"
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "nothing to publish; $VERSION may already exist"
+            exit 0
+          fi
+          git add -A
+          git commit -m "Publish acemq-spring-boot-starter $VERSION"
+          git push origin HEAD
+
+      - name: Verify the published version resolves
+        # The only check that asks what a consumer will actually get. The
+        # starter pom is what an application depends on, so it is what gets
+        # resolved here, from an empty local repository -- which pulls the
+        # autoconfiguration and health modules with it and so exercises the
+        # whole release rather than one artifact of it.
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          POM="https://acemq.org/maven/org/acemq/acemq-spring-boot-starter/$VERSION/acemq-spring-boot-starter-$VERSION.pom"
+          echo "waiting for Pages to serve $VERSION"
+          code=000
+          for attempt in $(seq 1 20); do
+            # -L because the feed has a custom domain and every github.io URL
+            # answers 301 to https://acemq.org/maven/... . Maven follows the
+            # redirect; a check that does not will call a good release broken.
+            code=$(curl -sL -o /dev/null -w '%{http_code}' "$POM")
+            [ "$code" = "200" ] && break
+            echo "  attempt $attempt: HTTP $code"
+            sleep 15
+          done
+          if [ "$code" != "200" ]; then
+            echo "::error::$VERSION was pushed but is not being served at $POM"
+            exit 1
+          fi
+          mvn -B --no-transfer-progress -Dmaven.repo.local="$RUNNER_TEMP/verify-m2" \
+            dependency:get \
+            -DremoteRepositories=https://acemq.org/maven/ \
+            -Dartifact="org.acemq:acemq-spring-boot-starter:$VERSION:pom"
+          echo "$VERSION resolves from a clean repository."
+
+  notify:
+    needs: [publish]
+    if: always()
+    uses: AceMQ-Company/acemq-java-amqp/.github/workflows/slack-notify.yml@main
+    with:
+      status: ${{ needs.publish.result == 'success' && 'success' || 'failure' }}
+      title: >-
+        ${{ needs.publish.result == 'success'
+            && format('acemq-spring-boot-starter {0} released', github.ref_name)
+            || format('acemq-spring-boot-starter {0} did not release', github.ref_name) }}
+      message: >-
+        ${{ needs.publish.result == 'success'
+            && 'All five modules are on the Maven feed and the starter resolves from a clean repository.'
+            || 'The release failed. Check whether anything reached the feed before re-running.' }}
+      url: https://acemq.org/maven/
+    secrets:
+      # Explicit, not `inherit`. A reusable workflow in another repository does
+      # not receive inherited secrets, which produced a notify job that went
+      # green while sending nothing at all. Where the secret is absent the
+      # notification does nothing and succeeds: a missing webhook must never
+      # fail a release that worked.
+      SLACK_DELIVERY_WEBHOOK: ${{ secrets.SLACK_DELIVERY_WEBHOOK }}
