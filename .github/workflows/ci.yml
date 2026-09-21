@@ -15,6 +15,12 @@ on:
   push:
     branches: [main]
   pull_request:
+  # acemq-java-amqp can release without a commit landing here, so this workflow
+  # also runs on a timer. That is the only thing that will ever notice a library
+  # release moving underneath an untouched repository, which is exactly how
+  # <acemq.version> sat at 0.2.10 while the library reached 0.7.3.
+  schedule:
+    - cron: '29 6 * * 1'
   workflow_dispatch:
 
 permissions:
@@ -84,3 +90,63 @@ jobs:
         run: |
           unzip -p acemq-spring-boot-autoconfigure/target/acemq-spring-boot-autoconfigure-*.jar \
             META-INF/spring-configuration-metadata.json | grep -q '"acemq.url"'
+
+  tracks-the-release:
+    name: the pin is the newest release
+    runs-on: ubuntu-latest
+    # A job of its own rather than another step in the matrix above, deliberately.
+    # A stale pin and a broken starter are different findings and both are worth
+    # having: the build still compiles and the tests still run no matter what this
+    # job says, so a red X here reads as "the pinned library is old", never as "we
+    # have no idea whether any of this works".
+    #
+    # The examples repositories have carried this job for a while and it works --
+    # it caught the .NET examples within an hour of a release. This repository
+    # needed it more and had it less. An examples repository pinned old merely
+    # proves something about a version nobody installs; a starter pinned old
+    # *ships* that version to everybody who adds the starter, and that is what
+    # happened: <acemq.version> resolved 0.2.10 into a published artifact while
+    # acemq-java-amqp was at 0.7.3, so anyone who took the starter got a library
+    # with none of the concurrency fix, the shutdown-timeout fix, the
+    # blocked-connection work, or the amqp-client security bumps.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: The pinned library is the newest released one
+        # Hard failure rather than a warning, for the same reason the examples
+        # repositories fail hard: a warning in a log is what let the pin fall five
+        # minor versions behind without anybody noticing. A green build is read as
+        # an answer, and a green build over a five-release-old dependency answers
+        # the wrong question.
+        #
+        # The cost is real and worth stating. A library release legitimately lands
+        # before this repository is updated, and during that window this job is red
+        # on a repository nobody has broken. But that window is the thing being
+        # measured, and the fix is a one-line version bump.
+        #
+        # The tags are asked of the library repository rather than of the Maven
+        # feed: git ls-remote needs no token, which matters on a scheduled run, and
+        # the tag is what the release was cut from.
+        run: |
+          pinned=$(sed -n 's/.*<acemq\.version>\(.*\)<\/acemq\.version>.*/\1/p' pom.xml | head -1)
+          newest=$(git ls-remote --tags https://github.com/AceMQ-Company/acemq-java-amqp \
+                     | grep -v '\^{}' | sed 's#.*refs/tags/##' \
+                     | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed 's/^v//' \
+                     | sort -V | tail -1)
+
+          # An empty answer means the listing failed or the tag naming changed, and
+          # comparing against nothing would pass silently forever.
+          if [ -z "$newest" ]; then
+            echo "::error::no release tags found on acemq-java-amqp, so the pin could not be checked"
+            exit 1
+          fi
+          if [ -z "$pinned" ]; then
+            echo "::error::no <acemq.version> found in pom.xml, so the pin could not be checked"
+            exit 1
+          fi
+
+          if [ "$pinned" != "$newest" ]; then
+            echo "::error::pom.xml pins acemq-java-amqp $pinned but the newest release is $newest. Edit <acemq.version> in pom.xml and set it to $newest, then build the starter against it."
+            exit 1
+          fi
+          echo "pinned acemq-java-amqp $pinned, which is the newest release"
