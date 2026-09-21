@@ -9,6 +9,8 @@ release train as much as it tracks AceMQ's.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-03
+
 ### Added
 
 - `AceMqAutoConfiguration`: an `AceMq` connection, a `ConnectionConfig`, the codec named by
