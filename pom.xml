@@ -87,7 +87,7 @@
          either would compile a module against the Boot it exists to not be. -->
     <spring.boot3.version>3.5.7</spring.boot3.version>
     <spring.boot4.version>4.1.0</spring.boot4.version>
-    <acemq.version>0.2.10</acemq.version>
+    <acemq.version>0.7.3</acemq.version>
     <testcontainers.version>1.21.4</testcontainers.version>
 
     <maven.surefire.plugin.version>3.5.2</maven.surefire.plugin.version>
