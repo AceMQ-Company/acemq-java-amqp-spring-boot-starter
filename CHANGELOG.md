@@ -9,6 +9,46 @@ release train as much as it tracks AceMQ's.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-21
+
+### Changed
+
+- **The library moves from 0.2.10 to 0.7.3.** 0.1.0 resolved
+  `acemq-amqp-core` 0.2.10, which was five minor versions behind the library at the time it
+  was published, so an application that added this starter got an AceMQ five releases old
+  without anything saying so.
+
+  What an application was missing, and now gets:
+
+  - **`.concurrency(N)` actually creating N consumers.** RabbitMQ's client sizes its
+    `ConsumerWorkService` to `availableProcessors()` and shares it across channels, so
+    `.concurrency(50)` on a four-core pod silently ran four.
+  - **Shutdown finishing inside its budget.** `ConsumerGroup.close()` gave each member the
+    full timeout and `AceMq.close()` gave each group its own, multiplying across two levels:
+    three groups of two consumers took 15 seconds against an 800ms budget. Now one shared
+    deadline.
+  - **A health check that returns when the broker is blocked.** It previously reported
+    `Degraded` for a blocked connection, which poisons an aggregate health endpoint.
+  - **`com.rabbitmq:amqp-client` at 5.36.0**, carrying the fixes for CVE-2026-69219,
+    CVE-2026-69220, CVE-2026-63337, CVE-2026-75516, CVE-2026-63336, CVE-2026-63335 and
+    CVE-2026-61634.
+  - **The Avro codec** (0.5.0) and **batch publish**, `Publisher.sendAll` (0.6.0), neither of
+    which existed at 0.2.10.
+  - The encryption framing all five libraries converged on, and the claim-check and
+    Protobuf changes that came with 0.6.0. Those three existed at 0.2.10; what is new is
+    that they now agree across the family.
+
+  No API changed across those five minors. The starter's own surface is identical, and the
+  suite passes untouched on Spring Boot 3.5, 4.0 and 4.1.
+
+### Fixed
+
+- **A tag now publishes this starter.** There was no release workflow, so pushing a tag did
+  nothing and 0.1.0 reached the Maven feed because somebody ran `mvn deploy` from their own
+  machine. The release now runs the suite, refuses a version the changelog does not record,
+  counts all five modules into the feed before pushing, and resolves the starter from an
+  empty local repository afterwards.
+
 ## [0.1.0] - 2026-09-03
 
 ### Added
