@@ -43,6 +43,10 @@ jobs:
       # Whether anything reached the feed. False for every failure before the
       # push, which is most of them, and the line the notification keys off.
       published: ${{ steps.push.outputs.published }}
+      # A tag carries this number; a workflow_dispatch does not. The release
+      # page has to name whatever was deployed rather than whatever the ref is
+      # called.
+      version: ${{ steps.version.outputs.value }}
     steps:
       - uses: actions/checkout@v4
 
@@ -268,23 +272,88 @@ jobs:
             -Dartifact="org.acemq:acemq-spring-boot-starter:$VERSION:pom"
           echo "$VERSION resolves from a clean repository."
 
-  notify:
+  # The releases page. 0.1.1 has been on the feed since 21 September 2026 and
+  # this repository's releases page still named 0.1.0 as the newest thing that
+  # existed -- the one release anybody ever created by hand. A page nobody
+  # writes is not neutral: it is read as current, it is older than the feed by
+  # exactly as long as nobody notices, and the cost lands on whoever trusts it.
+  #
+  # Keyed on the push rather than on the job having got this far. A release page
+  # naming a version the feed never received sends a reader to a dependency
+  # block that resolves nothing, and Maven blames their settings.xml for it.
+  #
+  # Nothing is attached, and this starter is the clearest case in the family for
+  # why not. It is five artifacts and a consumer who adds one gets all of them,
+  # which only works because each pom names the next. A jar pulled off a release
+  # page arrives with none of that: no autoconfigure module, no health
+  # indicator, no acemq-amqp-core underneath, and an application that starts
+  # cleanly and configures nothing. Attaching one would be offering a file that
+  # looks like the release and behaves like a missing dependency.
+  announce:
     needs: [publish]
+    if: needs.publish.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.publish.outputs.version }}
+        run: |
+          # `|| echo` rather than a failure. Re-running a release that already
+          # worked is a normal thing to do -- a dispatch after a Pages timeout
+          # is the usual reason -- and the page already being there is the
+          # outcome this step was after.
+          gh release create "v$VERSION" \
+            --title "v$VERSION" \
+            --notes "AceMQ Spring Boot starter $VERSION.
+
+          \`\`\`xml
+          <repositories>
+            <repository>
+              <id>acemq</id>
+              <url>https://acemq-company.github.io/maven/</url>
+            </repository>
+          </repositories>
+
+          <dependency>
+            <groupId>org.acemq</groupId>
+            <artifactId>acemq-spring-boot-starter</artifactId>
+            <version>$VERSION</version>
+          </dependency>
+          \`\`\`
+
+          The repository is served over GitHub Pages, so nothing here needs credentials. The starter is the only coordinate to add: the autoconfiguration, the health indicator for your Boot line and acemq-amqp itself all come with it.
+
+          Nothing is attached here. That is the reason above -- the starter is five artifacts held together by their poms, and a jar on its own is none of them.
+
+          Documentation: https://acemq.org/acemq-java-amqp-spring-boot-starter/
+          Changelog: https://github.com/AceMQ-Company/acemq-java-amqp-spring-boot-starter/blob/v$VERSION/CHANGELOG.md" \
+            || echo "release v$VERSION already exists"
+
+  notify:
+    needs: [publish, announce]
     # Only when something actually reached the feed. A run that failed before the
     # push published nothing, and announcing that as a release -- in either
     # direction -- tells the channel about a version that does not exist.
     if: always() && needs.publish.outputs.published == 'true'
     uses: AceMQ-Company/acemq-java-amqp/.github/workflows/slack-notify.yml@main
     with:
-      status: ${{ needs.publish.result }}
+      # Both halves have to have worked for this to read as done. Five modules
+      # on the feed with no release page is a release only half of the world can
+      # see, and a green tick over that state is what lets it stay that way.
+      status: ${{ (needs.publish.result == 'success' && needs.announce.result == 'success') && 'success' || 'failure' }}
       title: >-
-        ${{ needs.publish.result == 'success'
+        ${{ (needs.publish.result == 'success' && needs.announce.result == 'success')
             && format('acemq-spring-boot-starter {0} released', github.ref_name)
             || format('acemq-spring-boot-starter {0} is published but the release did not finish', github.ref_name) }}
       message: >-
-        ${{ needs.publish.result == 'success'
-            && 'All five modules are on the Maven feed and the starter resolves from a clean repository.'
-            || 'The artifacts are on the feed and consumers can resolve them, but a later step did not pass. Most often that is GitHub Pages taking longer than the verify step waits. Check the run before doing anything to the tag.' }}
+        ${{ (needs.publish.result == 'success' && needs.announce.result == 'success')
+            && 'All five modules are on the Maven feed, the starter resolves from a clean repository, and the releases page names this version.'
+            || 'The artifacts are on the feed and consumers can resolve them, but a later step did not pass. Most often that is GitHub Pages taking longer than the verify step waits, or the releases page not being written. Check the run before doing anything to the tag.' }}
       # Roadworks rather than a red dot, and the title says "published but the
       # release did not finish" rather than "failed". By the time this runs the
       # artifacts are on the feed: the release is out, and what did not finish is
@@ -295,7 +364,7 @@ jobs:
       # on the status-derived tick does not work: in GitHub's expression language
       # `a && '' || b` yields b, because an empty string is falsy, so every
       # successful release would be announced with roadworks.
-      icon: ${{ needs.publish.result == 'success' && ':white_check_mark:' || ':construction:' }}
+      icon: ${{ (needs.publish.result == 'success' && needs.announce.result == 'success') && ':white_check_mark:' || ':construction:' }}
       url: https://acemq.org/maven/
     secrets:
       # Explicit, not `inherit`. A reusable workflow in another repository does
