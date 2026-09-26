@@ -93,6 +93,7 @@
     <maven.surefire.plugin.version>3.5.2</maven.surefire.plugin.version>
     <maven.failsafe.plugin.version>3.5.2</maven.failsafe.plugin.version>
     <maven.javadoc.plugin.version>3.11.2</maven.javadoc.plugin.version>
+    <maven.compiler.plugin.version>3.13.0</maven.compiler.plugin.version>
   </properties>
 
   <!-- AceMQ's own artifacts are not on Maven Central before 1.0 (RELEASING.md in
@@ -136,6 +137,40 @@
   <build>
     <pluginManagement>
       <plugins>
+        <!-- The configuration processor, named explicitly rather than left to be
+             discovered on the classpath.
+
+             javac used to run any processor it found on the compile classpath. JDK 21
+             deprecated that and JDK 23 turned it off: a build that names no processor
+             gets no annotation processing at all. So on a JDK 23 or newer this module
+             compiled cleanly and produced no
+             META-INF/spring-configuration-metadata.json, which is the file that makes
+             acemq.* complete in an IDE — every property silently became a string
+             somebody had to spell from memory.
+
+             Nothing caught it. CI's matrix runs 17, 21 and 25, and the step that
+             asserts the metadata exists is conditioned on the 17 leg, so the two legs
+             that had lost it were never asked. The release job builds on 17, so the
+             published artifacts have always carried the file; what was one JDK bump
+             away was publishing a release without it and not finding out.
+
+             An annotationProcessorPaths entry is a processor explicitly requested, so
+             this works the same on every JDK the matrix runs, and unlike <proc>full</proc>
+             it is not an option javac 17 would reject. -->
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <version>${maven.compiler.plugin.version}</version>
+          <configuration>
+            <annotationProcessorPaths>
+              <path>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-configuration-processor</artifactId>
+                <version>${spring.boot.version}</version>
+              </path>
+            </annotationProcessorPaths>
+          </configuration>
+        </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-surefire-plugin</artifactId>

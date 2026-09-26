@@ -84,9 +84,22 @@ jobs:
             | grep -qx 'org.acemq.spring.boot.health.boot4.AceMqHealthAutoConfiguration'
 
       - name: Verify the configuration metadata was generated
-        if: matrix.java == '17' && matrix.boot == '3.5.7'
-        # Without it, acemq.* does not complete in an IDE and every property is a
-        # string somebody has to spell from memory.
+        # Every JDK in the matrix, not just the 17 leg, and that is the point.
+        #
+        # This step used to carry `matrix.java == '17'`, and it was the only thing
+        # asking the question. javac ran any annotation processor it found on the
+        # classpath until JDK 21 deprecated that and JDK 23 turned it off, so the 21
+        # and 25 legs were quietly producing a jar with no
+        # spring-configuration-metadata.json in it and nothing looked. The release
+        # job builds on 17, so no published artifact was ever missing the file --
+        # but the gate was one JDK bump away from not noticing that it was.
+        #
+        # The processor is now named in annotationProcessorPaths, which is an
+        # explicit request and so runs on every JDK. Asking on every leg is what
+        # keeps that true.
+        #
+        # Without the file, acemq.* does not complete in an IDE and every property
+        # is a string somebody has to spell from memory.
         run: |
           unzip -p acemq-spring-boot-autoconfigure/target/acemq-spring-boot-autoconfigure-*.jar \
             META-INF/spring-configuration-metadata.json | grep -q '"acemq.url"'
