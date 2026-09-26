@@ -103,6 +103,64 @@ made a choice.
 
 To take over entirely, define a `Telemetry` bean; the starter backs off.
 
+## Tracing
+
+Metrics say the application is slow. A trace says which message, through which four services,
+and where the time went — and for a message-driven application that is the harder question,
+because the caller and the callee are not on the same stack.
+
+The starter's `Telemetry` bean is `@ConditionalOnMissingBean(Telemetry.class)`, and it resolves
+to Micrometer when a `MeterRegistry` is present. It does **not** wire OpenTelemetry tracing for
+you, even with the OTel SDK on the classpath, because with Micrometer also present the
+Micrometer branch wins. Say what you want:
+
+```java
+@Configuration
+class Tracing {
+
+    /**
+     * Replaces the auto-configured Telemetry. Composite rather than either one alone: metrics
+     * and traces are both wanted, and the library's own auto-detection would give whichever it
+     * happened to find.
+     */
+    @Bean
+    Telemetry aceMqTelemetry(MeterRegistry meters, OpenTelemetry openTelemetry) {
+        return Telemetries.composite(
+                MicrometerSupport.telemetry(meters, "rabbitmq"),
+                OpenTelemetrySupport.telemetry(openTelemetry, "rabbitmq"));
+    }
+}
+```
+
+`OpenTelemetrySupport` lives in `acemq-amqp-core` and needs `io.opentelemetry:opentelemetry-api`
+on the classpath, which the OTel Spring Boot starter brings. The transport name is a tag and a
+span attribute; `rabbitmq` is what `acemq-transport-rabbitmq` reports for itself.
+
+What the library then produces: a span around every publish and every consume, and `traceparent`
+and `tracestate` propagated in the message headers — so a consume span in one service is a child
+of the publish span in another, without either service passing a context by hand.
+
+```java
+Telemetry telemetry = mq.telemetry();
+telemetry.propagationHeaders();   // what would be attached to a message published now
+```
+
+Useful in a test that asserts propagation, and useful when a span appears unparented and the
+question is whether the headers were ever attached.
+
+Beyond publish and consume, the `Telemetry` interface has hooks for the patterns —
+`messageRetried`, `messageDeadLettered`, `messageParked`, `outboxPublished`, `outboxFailed`,
+`pipelineRunFinished`, `retryRungMissing`, `setAsideFailed`. Both supplied implementations fill
+them in, and a `Telemetry` of your own only has to implement what it cares about: the rest are
+`default` methods that do nothing.
+
+**One span per attempt, not one span for the attempt chain.** A message retried four times over a
+minute produces four consume spans rather than one span held open for the minute. That is
+deliberate: the ladder's waits happen on the broker, and a span spanning them would be a minute
+of nothing with no thread behind it. The `traceparent` header survives the retry republish, so
+the four spans stay in one trace; `acemq.consume.attempts` is the meter that says how many there
+were.
+
 ## Listener counters
 
 `AceListenerRegistry` hands out the running `ConsumerGroup` for each listener id, and the

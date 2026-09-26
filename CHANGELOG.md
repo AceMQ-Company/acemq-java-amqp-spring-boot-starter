@@ -9,6 +9,110 @@ release train as much as it tracks AceMQ's.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-26
+
+### Added
+
+- **`acemq.topology.queues[].dead-letter`.** A queue could not be declared with a dead-letter
+  exchange from `application.yml` at all, and that is the property that decides whether a message
+  a handler cannot handle is kept or dropped.
+
+  There are two routes to a dead letter and only one of them worked from properties. A consumer
+  started with a retry ladder declares `acemq.dlx`, `{queue}.dlq` and `{queue}.parked` itself and
+  publishes its give-ups there, so `acemq.listener.retry.enabled` was enough for that path. The
+  other route is the broker's: a message that expires against an `x-message-ttl`, or one a handler
+  rejects with no ladder configured, is dead-lettered only if the queue carries
+  `x-dead-letter-exchange`. A consumer deliberately does not add that argument — it does not own
+  the source queue and a redeclaration that guesses quorum-or-classic wrong is a
+  `PRECONDITION_FAILED` that stops it starting — so it has to come from wherever the queue is
+  declared, which for this starter is the properties file, which had no way to say it.
+
+  `dead-letter: true` declares all four objects together, because they are only correct together:
+  the queue with `x-dead-letter-exchange: acemq.dlx` and a routing key of `{name}.dlq`, the
+  `acemq.dlx` direct exchange shared by every dead-lettering queue in the topology, and
+  `{name}.dlq` and `{name}.parked` bound to it on their own names. A queue pointed at a
+  dead-letter exchange nothing declares throws messages away exactly as if dead-lettering had
+  never been configured.
+
+  It works on a classic queue as well and keeps that queue's own arguments. Setting
+  `x-dead-letter-exchange` in `arguments` alongside it is refused rather than overruled.
+
+- **The docs site checks its own links.** Twenty-two pages that cross-reference each other
+  heavily, and a renamed heading breaks a link silently: pandoc renders
+  `](reliability.md#dead-letters)` into an anchor whether or not anything answers to it. The
+  render step now fails on a link to a page or a heading that does not exist, checked against the
+  markdown so the same links also work when the files are read on GitHub.
+
+### Changed
+
+- **`arguments` on a quorum queue is refused rather than dropped.** The library declares a quorum
+  queue by name and accepts no arguments for it, so
+  `{ name: orders.new, arguments: { x-message-ttl: 604800000 } }` was silently a queue with no
+  time-to-live. A file that asks for both now fails at startup, naming the queue and the
+  arguments, and saying to use `type: classic`. The previous behaviour was documented as
+  "classic queues only" and was still a queue quietly declared without what it was given —
+  found, if ever, by a disk filling up.
+
+  This will stop an application whose configuration is already not doing what it says. That is
+  the point of it.
+
+### Documentation
+
+- **Every pattern the library has, from Spring Boot.** The guide went from seven pages to
+  sixteen. What was missing was not reference material — `acemq.*` was documented property by
+  property — but any account of how the patterns the library is *for* are reached from a Boot
+  application. An application could read the whole site and not learn that an idempotency store
+  is a bean rather than a property.
+
+  New pages: **[Patterns](https://acemq.org/acemq-java-amqp-spring-boot-starter/patterns.html)** — the map, and for each pattern whether `application.yml` reaches it,
+  whether it replaces an auto-configured bean, or whether it is a bean of its own;
+  **[Publishing](https://acemq.org/acemq-java-amqp-spring-boot-starter/publishing.html)** — publisher beans, what `send` returns, envelopes, batches, `sendAsync`, and
+  back pressure on a blocked connection; **[Retries, dead letters and replay](https://acemq.org/acemq-java-amqp-spring-boot-starter/reliability.html)** — the ladder, the
+  two dead-letter routes, replay, idempotency and graceful shutdown; **[Messaging patterns](https://acemq.org/acemq-java-amqp-spring-boot-starter/messaging-patterns.html)** —
+  request-reply, scheduling, the transactional outbox, sagas, pipelines, ordered-per-key and
+  routing slips; **[Serialization and schemas](https://acemq.org/acemq-java-amqp-spring-boot-starter/serialization.html)** — codecs, Avro with a registry, evolution and the
+  claim check; **[Security](https://acemq.org/acemq-java-amqp-spring-boot-starter/security.html)** — TLS, credentials, development certificates and payload
+  encryption; **[Streams](https://acemq.org/acemq-java-amqp-spring-boot-starter/streams.html)** — offsets, resuming, and why `@AceListener` cannot read one;
+  **[Interceptors](https://acemq.org/acemq-java-amqp-spring-boot-starter/interceptors.html)** — registering them as beans, and what not to put in one.
+
+- **Four things the annotation cannot reach, said plainly** rather than left to be discovered:
+  an idempotency store, a per-listener retry ladder, a per-listener codec, and a stream. All four
+  are `ConsumerOptions` or an offset, none is a value a properties file can hold, and all four
+  have the same answer — declare that consumer as a `ConsumerGroup` bean. The pages now show that
+  bean rather than implying an attribute exists.
+
+- **The documented library version was five minors stale.** The versions table said
+  `acemq-java-amqp` 0.2.10 and two dependency snippets a reader would copy said
+  `acemq-amqp-test` 0.2.10, while the starter has resolved 0.7.3 since 0.1.1. The starter's own
+  version in the install snippets said 0.1.0, which 0.1.1 superseded.
+
+### Fixed
+
+- **The configuration metadata was not generated on JDK 23 or newer.** `acemq.*` completing in an
+  IDE depends on `META-INF/spring-configuration-metadata.json`, which
+  `spring-boot-configuration-processor` writes during compilation. javac ran any processor it
+  found on the compile classpath until JDK 21 deprecated that and JDK 23 turned it off: a build
+  that names no processor now gets no annotation processing at all. So on a current JDK this
+  module compiled cleanly, passed everything, and produced a jar with no metadata in it.
+
+  Nothing caught it. CI's matrix runs 17, 21 and 25, and the step that asserts the metadata exists
+  was conditioned on the 17 leg — so the two legs that had lost it were never asked. No published
+  release is affected, because the release job builds on 17; what was one JDK bump away was
+  publishing without it and not finding out.
+
+  The processor is now named in `annotationProcessorPaths`, which is an explicit request and so
+  runs on every JDK, and the CI step asks on every leg rather than on one. Verified on 3.5.7 and
+  4.1.0 under JDK 25.
+
+- **Three documented facts that were not true.** `ConsumerGroup` was described as carrying
+  `pause`, `resume` and a dead-letter counter; it has none of the three — pausing is
+  `mq.pauseConsuming()` on the connection, `scaleTo(0)` is refused, and dead letters are a metric.
+  The in-memory transport was described as not implementing dead-lettering, which meant the retry
+  ladder read as untestable without Docker when in fact it is not — the transport claims
+  `DEAD_LETTER_NATIVE` for queue-level expiry, which is what the ladder is built from. What it
+  genuinely does not do is route a *rejected* message to a dead-letter exchange, and that
+  distinction is now what the page says.
+
 ## [0.1.1] - 2026-09-21
 
 ### Changed

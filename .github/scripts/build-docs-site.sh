@@ -110,7 +110,11 @@ NAV='<nav class="top">
   <a href="getting-started.html">Getting started</a>
   <a href="configuration.html">Configuration</a>
   <a href="listeners.html">Listeners</a>
+  <a href="publishing.html">Publishing</a>
   <a href="topology.html">Topology</a>
+  <a href="patterns.html">Patterns</a>
+  <a href="security.html">Security</a>
+  <a href="streams.html">Streams</a>
   <a href="observability.html">Observability</a>
   <a href="testing.html">Testing</a>
   <a class="tutorials" href="tutorials.html">Tutorials</a>
@@ -157,6 +161,67 @@ for f in docs/*.md; do
 done
 
 rm -f "$OUT/.nav.html" "$OUT/.foot.html"
+
+# Every cross-page link, checked against the pages and headings that exist.
+#
+# The guide is now twenty-two pages that link to each other heavily, and a renamed
+# heading breaks a link silently: pandoc renders `](reliability.md#dead-letters)`
+# into an anchor whether or not anything answers to it, and the reader finds out.
+# Checked against the markdown rather than the HTML so the same links also work
+# when these files are read on GitHub, which is the other way people read them.
+python3 - "$REPO_ROOT/docs" <<'PY'
+import pathlib
+import re
+import sys
+
+docs = pathlib.Path(sys.argv[1])
+pages = {p.name for p in docs.glob("*.md")}
+
+
+def anchors(text):
+    """The slugs pandoc will generate, which is the heading lowercased and hyphenated."""
+    found = set()
+    for line in text.splitlines():
+        heading = re.match(r"^#{1,6}\s+(.*)", line)
+        if not heading:
+            continue
+        slug = heading.group(1).strip().lower()
+        slug = re.sub(r"`|\*\*|\*|\[|\]\([^)]*\)", "", slug)
+        slug = re.sub(r"[^a-z0-9\s-]", "", slug)
+        found.add(re.sub(r"\s+", "-", slug.strip()))
+    return found
+
+
+headings = {p.name: anchors(p.read_text()) for p in docs.glob("*.md")}
+broken = []
+links = 0
+
+for page in sorted(docs.glob("*.md")):
+    for target in re.findall(r"\]\(([^)]+)\)", page.read_text()):
+        if target.startswith(("http", "mailto:")):
+            continue
+        if target.startswith("#"):
+            links += 1
+            if target[1:] not in headings[page.name]:
+                broken.append(f"{page.name} -> {target}")
+            continue
+        name, _, fragment = target.partition("#")
+        if not name.endswith(".md"):
+            continue
+        links += 1
+        if name not in pages:
+            broken.append(f"{page.name} -> {name} (no such page)")
+        elif fragment and fragment not in headings[name]:
+            broken.append(f"{page.name} -> {name}#{fragment} (no such heading)")
+
+if broken:
+    print("broken links:", file=sys.stderr)
+    for link in broken:
+        print(f"  {link}", file=sys.stderr)
+    sys.exit(1)
+
+print(f"  checked {links} internal links across {len(pages)} pages")
+PY
 
 # Javadoc. Only one of the two modules has code -- the starter is a pom -- so the
 # API reference is that module's own javadoc rather than an aggregate. The plugin

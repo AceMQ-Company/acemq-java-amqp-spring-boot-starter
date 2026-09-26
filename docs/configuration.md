@@ -62,6 +62,9 @@ that says what it is survives a code review.
 certificate does not carry AceMQ's development marker, so the option only accepts the
 certificates that announce themselves as untrustworthy.
 
+[Security](security.md) is the whole subject: generating a development set, credentials that
+change while the application is running, and encrypting the payload as well as the connection.
+
 ## Topology
 
 | Property | Default | What it does |
@@ -71,14 +74,29 @@ certificates that announce themselves as untrustworthy.
 | `acemq.topology.exchanges[].name` | — | Exchange name |
 | `acemq.topology.exchanges[].type` | `topic` | `direct`, `topic`, `fanout` or `headers` |
 | `acemq.topology.queues[].name` | — | Queue name |
-| `acemq.topology.queues[].type` | `quorum` | `quorum` or `classic` |
+| `acemq.topology.queues[].type` | `quorum` | `quorum` or `classic`. There is no `stream`; see [Streams](streams.md) |
 | `acemq.topology.queues[].arguments` | empty | Broker arguments, classic queues only |
+| `acemq.topology.queues[].dead-letter` | `false` | Declare this queue so the broker dead-letters what it rejects, with its `.dlq` and `.parked` queues |
 | `acemq.topology.bindings[].queue` | — | Queue to bind |
 | `acemq.topology.bindings[].exchange` | — | Exchange to bind it to |
 | `acemq.topology.bindings[].routing-key` | `""` | Routing key, or the pattern for a topic exchange |
 
 Nothing declared means nothing applied, and no round trip to the broker at startup.
 [Topology](topology.md) covers the apply modes and drift.
+
+**`dead-letter: true` declares four things, not one.** The queue itself with
+`x-dead-letter-exchange: acemq.dlx` and a routing key of `{name}.dlq`, the `acemq.dlx` exchange,
+and `{name}.dlq` and `{name}.parked` bound to it on their own names. They are only correct
+together — a queue pointed at a dead-letter exchange nothing declares throws messages away
+exactly as if dead-lettering had never been configured — which is why this is one property
+rather than four blocks of YAML. [Dead letters](reliability.md#dead-letters) has the rest,
+including why `.dlq` and `.parked` are separate.
+
+**`arguments` on a quorum queue is refused, not ignored.** The library declares a quorum queue by
+name and accepts no arguments for it, so a file that sets both fails at startup naming the queue
+and the arguments. Earlier versions dropped them silently, which is a queue declared without the
+time-to-live it was given — found, eventually, by a disk filling up. Use `type: classic` when the
+arguments are the point.
 
 ## Listeners
 
@@ -130,6 +148,10 @@ with a delay** rather than slept on inside the handler. A `Thread.sleep` in a co
 blocks its channel, and everything prefetched behind it waits with it —
 [Listeners](listeners.md#when-a-handler-throws) has the arithmetic.
 
+These are connection-wide: every `@AceListener` in the application shares one ladder. A single
+queue that needs a different one is a `ConsumerGroup` bean —
+[Retries](reliability.md#what-the-annotation-cannot-reach).
+
 ## Health
 
 | Property | Default | What it does |
@@ -137,7 +159,16 @@ blocks its channel, and everything prefetched behind it waits with it —
 | `management.health.acemq.enabled` | `true` | Register the health indicator |
 
 Actuator's own `management.endpoint.health.show-details` decides whether the details
-described in [Observability](observability.md) are visible over HTTP.
+described in [Observability](observability.md) are visible over HTTP, and
+[what the application exposes](security.md#what-the-application-exposes) is the argument for
+setting it deliberately.
+
+## What is not a property
+
+Some of what the library does is a bean rather than a setting, because the value is code or an
+object. [Patterns](patterns.md) is the map; the short version is that payload encryption, claim
+checks, Avro registries and tracing replace the `Codec` or `Telemetry` bean, and the outbox,
+sagas, pipelines, streams, request-reply and scheduling are beans of their own.
 
 ## A complete file
 
@@ -165,7 +196,7 @@ acemq:
     exchanges:
       - { name: orders, type: topic }
     queues:
-      - { name: orders.new }
+      - { name: orders.new, dead-letter: true }
       - { name: orders.audit, type: classic, arguments: { x-message-ttl: 604800000 } }
     bindings:
       - { queue: orders.new,   exchange: orders, routing-key: order.created }

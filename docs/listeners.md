@@ -139,6 +139,26 @@ do something different from the first.
 interface that nothing in the library currently uses. An annotation wired to an unused code
 path is a starter growing a feature its own library does not have, so this one does not.
 
+[Retries, dead letters and replay](reliability.md) is the whole of this subject: where a message
+goes when the ladder gives up, how to get it back, and how to survive the redelivery.
+
+## What the annotation does not reach
+
+The annotation has five attributes and there will not be many more. Three things it cannot do,
+each with the same answer — declare that consumer as a `ConsumerGroup` bean and use the library's
+own API:
+
+| | |
+|---|---|
+| An [idempotency store](reliability.md#idempotency) | `ConsumerOptions.idempotent(store)` |
+| A retry ladder for this queue only | `ConsumerOptions.withRetry(policy)` |
+| A codec for this queue only | `ConsumerOptions.as(codec)` |
+
+All three are `ConsumerOptions`, and the registry that starts annotated listeners builds those
+from `acemq.listener.*` alone — which is a property file, and none of the three is a value a
+property file can hold. [Idempotency](reliability.md#idempotency) has the bean form in full, and
+[Patterns](patterns.md) is the map of which patterns need it.
+
 ## Starting and stopping
 
 Listeners are started by `AceListenerRegistry`, a `SmartLifecycle`, after the rest of the
@@ -183,10 +203,26 @@ class OrderThrottle {
 }
 ```
 
-`get(id)` returns the library's own `ConsumerGroup`, which is what carries `scaleTo`,
-`prefetch`, `pause`, `resume`, `drain` and the counters — acknowledged, rejected, retried,
-dead-lettered, in flight. It is a library type rather than a wrapper of this starter's,
-because a wrapper would be one more thing to keep in step.
+`get(id)` returns the library's own `ConsumerGroup`, which is what carries `scaleTo`, `prefetch`,
+`drainTimeout`, `drain`, `close` and the counters — `acknowledged`, `rejected`, `retried`,
+`inFlight`, plus `queue`, `size` and `prefetch` as readers. It is a library type rather than a
+wrapper of this starter's, because a wrapper would be one more thing to keep in step.
+
+Two things are not on it, and are worth knowing before looking for them.
+
+**Pausing.** A group has no pause of its own. `mq.pauseConsuming()` and `mq.resumeConsuming()`
+stop and start every consumer on the connection at once, which is the right tool for shedding
+load and the wrong one for quietening a single noisy listener. `scaleTo(1)` is the floor —
+`scaleTo(0)` is refused with "a group needs at least one consumer" — so the way to stop one
+listener entirely is to register it with `autoStartup = "false"` and start it when wanted.
+
+Note also that scaling **down** blocks: the consumers being removed are drained first, up to
+`drainTimeout`. A `scaleTo` that returned instantly while abandoning work in the background would
+be the more convenient lie.
+
+**Dead letters.** Not a group counter. `acemq.messages.dead.lettered.total`, tagged by queue, is
+the [metric](observability.md#metrics), and `mq.messageCount("orders.new.dlq")` is the depth —
+see [Dead letters](reliability.md#dead-letters).
 
 Every listener is a group, even at concurrency one. One type means one set of counters and
 one shutdown path, and a group of one costs nothing.
@@ -207,3 +243,6 @@ with the first, and the place where a starter starts making decisions the librar
 deliberately left to the caller — which codec, which options, whether the send is
 synchronous. The publisher is already small, already typed, and already documented in the
 library's own guide.
+
+[Publishing](publishing.md) is the page: keeping a publisher as a bean, what `send` returns,
+batches, and what happens when the broker stops reading.

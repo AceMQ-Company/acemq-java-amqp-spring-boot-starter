@@ -2,7 +2,7 @@
 
 [![ci](https://github.com/AceMQ-Company/acemq-java-amqp-spring-boot-starter/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/AceMQ-Company/acemq-java-amqp-spring-boot-starter/actions/workflows/ci.yml)
 [![authorship guard](https://github.com/AceMQ-Company/acemq-java-amqp-spring-boot-starter/actions/workflows/attribution-guard.yml/badge.svg?branch=main)](https://github.com/AceMQ-Company/acemq-java-amqp-spring-boot-starter/actions/workflows/attribution-guard.yml)
-[![version](https://img.shields.io/badge/version-0.1.1-blue)](https://github.com/AceMQ-Company/acemq-java-amqp-spring-boot-starter/releases)
+[![version](https://img.shields.io/badge/version-0.2.0-blue)](https://github.com/AceMQ-Company/acemq-java-amqp-spring-boot-starter/releases)
 [![artifacts](https://img.shields.io/badge/artifacts-acemq.org%2Fmaven-blue)](https://acemq.org/maven/)
 [![docs](https://img.shields.io/badge/docs-acemq.org-blue)](https://acemq.org/acemq-java-amqp-spring-boot-starter/)
 [![license](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
@@ -13,9 +13,10 @@ Spring Boot auto-configuration for [acemq-java-amqp](https://github.com/AceMQ-Co
 one connection, a declared topology, annotated listeners, health and metrics — configured
 from `application.yaml` and nothing else.
 
-> **Status: `0.1.0`, published.** 42 unit tests and 3 integration tests against
+> **Status: `0.2.0`, published.** 49 unit tests and 3 integration tests against
 > RabbitMQ 4 in Testcontainers, run on Spring Boot 3.5.7, 4.0.6 and 4.1.0.
-> Artifacts are on the [Maven repository](https://acemq-company.github.io/maven/).
+> Artifacts are on the [Maven repository](https://acemq-company.github.io/maven/),
+> and resolve `acemq-java-amqp` 0.7.3.
 
 ```yaml
 acemq:
@@ -58,7 +59,7 @@ annotation for the other direction.
 
 ## Installing
 
-Four modules are published:
+Four artifacts an application might name, plus the parent pom, are published:
 
 | Artifact | What it is |
 |---|---|
@@ -86,11 +87,15 @@ choose and nothing to configure.
 <dependency>
   <groupId>org.acemq</groupId>
   <artifactId>acemq-spring-boot-starter</artifactId>
-  <version>0.1.0</version>
+  <version>0.2.0</version>
 </dependency>
 ```
 
-The repository block is needed because AceMQ is not on Maven Central before 1.0.
+The repository block is how AceMQ is distributed: the feed is a Git-hosted Maven repository
+served over GitHub Pages at [acemq.org/maven](https://acemq.org/maven/), so it needs no
+credentials and no settings.xml. Adding the repository is the only step; the starter is the only
+coordinate, and the autoconfiguration, the health indicator for your Boot line and
+`acemq-java-amqp` itself all come with it.
 
 ## What it configures
 
@@ -110,7 +115,7 @@ dependency rather than creating one.
 
 ## Documentation
 
-Seven guide pages and five tutorials, published at
+Sixteen guide pages and five tutorials, published at
 **<https://acemq.org/acemq-java-amqp-spring-boot-starter/>**. They read as markdown in
 [docs/](docs/) too, and render with `.github/scripts/build-docs-site.sh`.
 
@@ -118,9 +123,17 @@ Seven guide pages and five tutorials, published at
 |---|---|
 | **Start here** | [docs/index.md](docs/index.md) · [Getting started](docs/getting-started.md) |
 | **Reference** | [Configuration](docs/configuration.md) — every `acemq.*` property |
-| **Usage** | [Listeners](docs/listeners.md) · [Topology](docs/topology.md) · [Observability](docs/observability.md) · [Testing](docs/testing.md) |
+| **Usage** | [Listeners](docs/listeners.md) · [Publishing](docs/publishing.md) · [Topology](docs/topology.md) |
+| **Patterns** | [Patterns](docs/patterns.md) — the map · [Retries, dead letters and replay](docs/reliability.md) · [Messaging patterns](docs/messaging-patterns.md) · [Serialization and schemas](docs/serialization.md) · [Interceptors](docs/interceptors.md) |
+| **Security** | [TLS, credentials, development certificates, payload encryption](docs/security.md) |
+| **Streams** | [An append-only log, and what the annotation cannot do](docs/streams.md) |
+| **Operations** | [Observability](docs/observability.md) · [Testing](docs/testing.md) |
 | **Tutorials** | [Five, in order](docs/tutorials.md), each ending with something that runs |
 | **Support** | [Enterprise support](https://acemq.com) |
+
+[Patterns](docs/patterns.md) is the page to read first if you already know the library: it lists
+every pattern it has and says, for each one, whether `application.yml` reaches it, whether it
+replaces an auto-configured bean, or whether it is a bean of its own.
 
 ## Two decisions worth knowing about
 
@@ -144,7 +157,7 @@ Java 17, and Spring Boot 3 or 4. Built and tested against 3.5.7, 4.0.6 and 4.1.0
 Not a supported configuration yet, but closer than expected, and the measurement is worth
 recording rather than re-deriving.
 
-The auto-configure module **compiles at Java 11 bytecode and passes its full suite (31
+The auto-configure module **compiles at Java 11 bytecode and passes its full suite (38
 tests) against Boot 2.7.18** with no source changes. Nothing had to be ported because
 `acemq-amqp-core` is deliberately namespace-free — this module has zero `javax.*` and zero
 `jakarta.*` imports — and every Spring API it uses (`@AutoConfiguration`, the

@@ -41,8 +41,26 @@ class Orders {
 | [Getting started](getting-started.md) | A broker, a dependency, a message that goes and comes back |
 | [Configuration](configuration.md) | Every `acemq.*` property, what it does, and what it defaults to |
 | [Listeners](listeners.md) | `@AceListener`: payloads, concurrency, failures, starting and stopping |
+| [Publishing](publishing.md) | Publisher beans, confirms, batches, back pressure |
 | [Topology](topology.md) | Declaring exchanges, queues and bindings, and the three apply modes |
-| [Observability](observability.md) | Health, metrics, and what the numbers mean |
+
+### The patterns
+
+| | |
+|---|---|
+| [Patterns](patterns.md) | Every pattern the library has, and how much of it `application.yml` reaches |
+| [Retries, dead letters and replay](reliability.md) | The ladder, `.dlq` and `.parked`, replay, idempotency, shutdown |
+| [Messaging patterns](messaging-patterns.md) | Request-reply, scheduling, outbox, saga, pipelines, ordering, routing slips |
+| [Serialization and schemas](serialization.md) | Codecs, Avro and the registry, evolution, claim check |
+| [Streams](streams.md) | An append-only log: offsets, resuming, and what the annotation cannot do |
+| [Security](security.md) | TLS, credentials, development certificates, payload encryption |
+| [Interceptors](interceptors.md) | Every message in and out, for the cross-cutting things |
+
+### And
+
+| | |
+|---|---|
+| [Observability](observability.md) | Health, metrics, tracing, and what the numbers mean |
 | [Testing](testing.md) | A context test without Docker, and an integration test with it |
 | [Tutorials](tutorials.md) | Five, in order, each ending with something that runs |
 
@@ -66,10 +84,13 @@ Concretely, it gives an application:
 
 - **Not a replacement for Spring AMQP.** If an application is happily using
   `RabbitTemplate` and `@RabbitListener`, this offers no reason to move on its own. The
-  reason to move is the library underneath: non-blocking retry ladders, an outbox, sagas,
-  claim checks and pipelines, and a topology that is planned rather than declared by
-  side effect. This starter is how those reach a Boot application, not a competing
-  listener container.
+  reason to move is the library underneath: [non-blocking retry ladders](reliability.md#retries),
+  [an outbox](messaging-patterns.md#transactional-outbox),
+  [sagas](messaging-patterns.md#saga), [claim checks](serialization.md#claim-check) and
+  [pipelines](messaging-patterns.md#pipelines), and a [topology](topology.md) that is planned
+  rather than declared by side effect. This starter is how those reach a Boot application, not a
+  competing listener container. [Patterns](patterns.md) is the full list and how each one is
+  wired.
 - **Not a message-broker abstraction.** AceMQ is portable across AMQP brokers; it is not a
   facade over Kafka, JMS and SQS. Neither is this.
 - **Not a template.** There is no `AceTemplate`. See
@@ -82,7 +103,7 @@ Concretely, it gives an application:
 |---|---|
 | Java | 17 |
 | Spring Boot | **3.x and 4.x**, from one artifact. Built and tested against 3.5.7, 4.0.6 and 4.1.0 |
-| acemq-java-amqp | 0.2.10 |
+| acemq-java-amqp | 0.7.3 |
 | Brokers | RabbitMQ 3.13 and 4.x, via `acemq-transport-rabbitmq` |
 
 Spring's own artifacts are `provided`: this starter never brings a Boot version of its own

@@ -12,7 +12,7 @@ apply, no container.
 <dependency>
   <groupId>org.acemq</groupId>
   <artifactId>acemq-amqp-test</artifactId>
-  <version>0.2.10</version>
+  <version>0.7.3</version>
   <scope>test</scope>
 </dependency>
 ```
@@ -53,10 +53,70 @@ the quorum default needs a broker.
 different brokers; two connections to the same name share state. Give each test class its
 own name rather than resetting shared state between tests.
 
-What it does implement is routing, prefetch and settlement, which is what most tests
-actually exercise. What it does not: replication, persistence, delayed delivery,
-dead-lettering. Code depending on those fails here for the same reason it would fail
-against a broker that lacks them.
+What it does implement is exchange routing, topic wildcards, publisher confirms, prefetch and
+settlement — and **dead-lettering**, which means the retry ladder can be tested without Docker:
+
+```java
+@SpringBootTest(properties = {
+        "acemq.url=memory://retries-test",
+        "acemq.listener.retry.enabled=true",
+        "acemq.listener.retry.max-attempts=3",
+        "acemq.listener.retry.initial-delay=50ms",
+        "acemq.listener.retry.jitter=0",
+        "acemq.topology.queues[0].name=payments.new",
+        "acemq.topology.queues[0].type=classic",
+        "acemq.topology.queues[0].dead-letter=true"
+})
+class RetryLadderTest {
+
+    @Autowired AceMq mq;
+    @Autowired AlwaysFailing handler;
+
+    @Test
+    void givesUpIntoTheDeadLetterQueue() {
+        mq.publisher("", "payments.new", Payment.class).send(new Payment("p-1", 42.00));
+
+        await().atMost(TEN_SECONDS).until(() -> mq.messageCount("payments.new.dlq") == 1);
+        assertThat(handler.attempts()).isEqualTo(3);
+    }
+}
+```
+
+Short delays and `jitter=0`, so the test takes a moment rather than a minute and does not vary.
+
+**Only the ladder's route, though.** The fake's dead-lettering is queue-level expiry, which is
+what the ladder is built from; it does not route a *rejected* message to a dead-letter exchange
+the way a real broker does. So the case in
+[Dead letters](reliability.md#dead-letters) where a handler throws with no ladder configured
+cannot be observed here — the message is rejected and gone, and `payments.new.dlq` stays empty.
+Assert the declaration instead, and leave the broker's own route to an `*IT`:
+
+```java
+Topology topology = AceMqTopologies.from(properties.getTopology());
+
+assertThat(topology.queues())
+        .filteredOn(queue -> queue.name().equals("payments.new"))
+        .singleElement()
+        .satisfies(queue -> assertThat(queue.arguments())
+                .containsEntry(Topology.DEAD_LETTER_EXCHANGE_ARGUMENT, Topology.DEAD_LETTER_EXCHANGE));
+```
+
+This is the general shape of the trade with the fake, and it is the reason to know what it
+claims: the half that a properties file can get wrong is testable in milliseconds, and the half
+that is the broker's behaviour needs the broker.
+
+What the fake does not claim, and so refuses rather than fakes: quorum queues, streams,
+delayed delivery, per-message TTL, priority, single active consumer and consistent-hash routing.
+`mq.capabilities()` is the authoritative list, and code depending on something absent fails here
+for the same reason it would fail against a broker that lacks it.
+
+More is testable in memory than that list suggests. The library's own suite covers
+[replay](reliability.md#replay), [the outbox relay](messaging-patterns.md#transactional-outbox),
+[pipelines](messaging-patterns.md#pipelines),
+[ordered queues](messaging-patterns.md#ordered-per-key) and
+[scheduling](messaging-patterns.md#scheduling) against `memory://`, and only
+[streams](streams.md) has to have a container. If a pattern seems untestable without Docker,
+check the capability before reaching for one.
 
 ## A slice without messaging at all
 
