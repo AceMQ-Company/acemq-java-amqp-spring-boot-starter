@@ -35,7 +35,8 @@ public final class AceMqTopologies {
      * @param properties the {@code acemq.topology} block
      * @return what the application expects to exist
      * @throws IllegalArgumentException when a name is missing, because a queue with no name
-     *     is a configuration mistake that would otherwise reach the broker as one
+     *     is a configuration mistake that would otherwise reach the broker as one, or when a
+     *     quorum queue carries arguments the library cannot pass on
      */
     public static Topology from(AceMqProperties.Topology properties) {
         Topology.Builder builder = Topology.define();
@@ -45,14 +46,28 @@ public final class AceMqTopologies {
         }
         for (AceMqProperties.Topology.Queue queue : properties.getQueues()) {
             require(queue.getName(), "acemq.topology.queues[].name");
-            if (queue.getType() == AceMqProperties.Topology.Queue.Kind.CLASSIC) {
+            boolean classic = queue.getType() == AceMqProperties.Topology.Queue.Kind.CLASSIC;
+            // Topology.queue() is a durable quorum queue, which is the library's default,
+            // and it takes no arguments. The quorum-queue arguments people reach for first
+            // (x-max-priority, x-message-ttl on the queue) are the ones RabbitMQ refuses on
+            // a quorum queue anyway, so there is nothing to pass through -- but dropping
+            // them without a word is worse than not offering them. A file that asks for
+            // both is refused, with the queue named, rather than started with half of what
+            // it wrote down.
+            if (!classic && !queue.getArguments().isEmpty()) {
+                throw new IllegalArgumentException(
+                        "acemq.topology.queues[].arguments is not accepted for a quorum queue,"
+                                + " and '" + queue.getName() + "' has "
+                                + queue.getArguments().keySet()
+                                + ". Declare it with type: classic, or drop the arguments.");
+            }
+            if (classic && queue.isDeadLetter()) {
+                builder.classicQueueWithDeadLetter(queue.getName(), queue.getArguments());
+            } else if (classic) {
                 builder.classicQueue(queue.getName(), queue.getArguments());
+            } else if (queue.isDeadLetter()) {
+                builder.queueWithDeadLetter(queue.getName());
             } else {
-                // Topology.queue() is a durable quorum queue, which is the library's
-                // default. Arguments are not accepted for it here: the quorum queue
-                // arguments people reach for first (x-max-priority, x-message-ttl on
-                // the queue) are the ones RabbitMQ refuses on a quorum queue, and a
-                // property that is silently dropped is worse than one that is absent.
                 builder.queue(queue.getName());
             }
         }

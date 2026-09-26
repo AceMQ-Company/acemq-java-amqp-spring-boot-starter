@@ -381,8 +381,31 @@ public class AceMqProperties {
              */
             private Kind type = Kind.QUORUM;
 
-            /** Broker-specific arguments, x-message-ttl and the rest. */
+            /**
+             * Broker-specific arguments, x-message-ttl and the rest.
+             *
+             * <p>Classic queues only. The library declares a quorum queue by name and takes
+             * no arguments for it, so arguments alongside {@code type: quorum} are refused at
+             * startup rather than dropped — a queue silently declared without the
+             * time-to-live it was given is the kind of thing that is found by a disk filling
+             * up.
+             */
             private Map<String, Object> arguments = new LinkedHashMap<>();
+
+            /**
+             * Declare this queue so the broker dead-letters what it rejects, together with
+             * the {@code .dlq} and {@code .parked} queues the letters land in and the
+             * exchange that reaches them.
+             *
+             * <p>Off by default, because the four objects it declares are more than an
+             * application asked for when it wrote down one queue name.
+             *
+             * <p>Without it, a message a handler cannot handle is dropped: rejected by the
+             * consumer, and thrown away by a broker with nowhere to send it. That is the
+             * default a queue declared by name has, and it is worth choosing deliberately
+             * rather than discovering.
+             */
+            private boolean deadLetter;
 
             public enum Kind {
                 QUORUM,
@@ -411,6 +434,14 @@ public class AceMqProperties {
 
             public void setArguments(Map<String, Object> arguments) {
                 this.arguments = arguments;
+            }
+
+            public boolean isDeadLetter() {
+                return deadLetter;
+            }
+
+            public void setDeadLetter(boolean deadLetter) {
+                this.deadLetter = deadLetter;
             }
         }
 

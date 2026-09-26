@@ -95,6 +95,67 @@ class AceMqTopologiesTest {
                 .hasMessageContaining("acemq.topology.queues[].name");
     }
 
+    /**
+     * The four objects {@code dead-letter: true} is shorthand for. Asserted by name, because
+     * the names are the contract: a triage tool that reads {@code orders.new.dlq} has to find
+     * it called that.
+     */
+    @Test
+    void aDeadLetteringQuorumQueueBringsItsDlqAndParkedQueue() {
+        AceMqProperties.Topology properties = new AceMqProperties.Topology();
+        AceMqProperties.Topology.Queue queue =
+                queue("orders.new", AceMqProperties.Topology.Queue.Kind.QUORUM);
+        queue.setDeadLetter(true);
+        properties.getQueues().add(queue);
+
+        Topology topology = AceMqTopologies.from(properties);
+
+        assertThat(topology.queues()).extracting(Topology.QueueSpec::name)
+                .contains("orders.new", "orders.new.dlq", "orders.new.parked");
+        assertThat(topology.queues().get(0).arguments())
+                .containsEntry(Topology.DEAD_LETTER_EXCHANGE_ARGUMENT, Topology.DEAD_LETTER_EXCHANGE)
+                .containsEntry(Topology.DEAD_LETTER_ROUTING_KEY_ARGUMENT, "orders.new.dlq");
+        assertThat(topology.exchanges()).extracting(Topology.ExchangeSpec::name)
+                .contains(Topology.DEAD_LETTER_EXCHANGE);
+    }
+
+    @Test
+    void aDeadLetteringClassicQueueKeepsItsOwnArgumentsToo() {
+        AceMqProperties.Topology properties = new AceMqProperties.Topology();
+        AceMqProperties.Topology.Queue queue =
+                queue("orders.audit", AceMqProperties.Topology.Queue.Kind.CLASSIC);
+        queue.setArguments(Map.of("x-message-ttl", 5000));
+        queue.setDeadLetter(true);
+        properties.getQueues().add(queue);
+
+        Topology topology = AceMqTopologies.from(properties);
+
+        assertThat(topology.queues().get(0).quorum()).isFalse();
+        assertThat(topology.queues().get(0).arguments())
+                .containsEntry("x-message-ttl", 5000)
+                .containsEntry(Topology.DEAD_LETTER_ROUTING_KEY_ARGUMENT, "orders.audit.dlq");
+    }
+
+    /**
+     * Arguments on a quorum queue used to be dropped on the floor. A file that asks for a
+     * time-to-live and gets a queue without one is a disk that fills up months later, so the
+     * ask is refused with the queue named instead.
+     */
+    @Test
+    void argumentsOnAQuorumQueueAreRefusedRatherThanDropped() {
+        AceMqProperties.Topology properties = new AceMqProperties.Topology();
+        AceMqProperties.Topology.Queue queue =
+                queue("orders.new", AceMqProperties.Topology.Queue.Kind.QUORUM);
+        queue.setArguments(Map.of("x-message-ttl", 5000));
+        properties.getQueues().add(queue);
+
+        assertThatThrownBy(() -> AceMqTopologies.from(properties))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("orders.new")
+                .hasMessageContaining("x-message-ttl")
+                .hasMessageContaining("type: classic");
+    }
+
     @Test
     void applyModesMap() {
         assertThat(AceMqTopologies.mode(AceMqProperties.Topology.Apply.CREATE_ONLY))
