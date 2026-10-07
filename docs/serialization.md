@@ -28,7 +28,7 @@ and nothing else, so any other format needs its codec on the classpath:
 <dependency>
   <groupId>org.acemq</groupId>
   <artifactId>acemq-amqp-codec-yaml</artifactId>
-  <version>0.7.3</version>
+  <version>0.7.12</version>
 </dependency>
 ```
 

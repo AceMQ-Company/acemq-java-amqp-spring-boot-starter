@@ -9,6 +9,11 @@ release train as much as it tracks AceMQ's.
 
 ## [Unreleased]
 
+### Changed
+
+- **The library moves from 0.7.3 to 0.7.12.** `<acemq.version>` follows the libraries
+  workspace's released line again; nothing in the starter's API changes with it.
+
 ## [0.2.0] - 2026-09-26
 
 ### Added

@@ -16,7 +16,7 @@ from `application.yaml` and nothing else.
 > **Status: `0.2.0`, published.** 49 unit tests and 3 integration tests against
 > RabbitMQ 4 in Testcontainers, run on Spring Boot 3.5.7, 4.0.6 and 4.1.0.
 > Artifacts are on the [Maven repository](https://acemq-company.github.io/maven/),
-> and resolve `acemq-java-amqp` 0.7.3.
+> and resolve `acemq-java-amqp` 0.7.12.
 
 ```yaml
 acemq:
