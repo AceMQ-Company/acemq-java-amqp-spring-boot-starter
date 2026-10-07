@@ -103,7 +103,7 @@ Concretely, it gives an application:
 |---|---|
 | Java | 17 |
 | Spring Boot | **3.x and 4.x**, from one artifact. Built and tested against 3.5.7, 4.0.6 and 4.1.0 |
-| acemq-java-amqp | 0.7.3 |
+| acemq-java-amqp | 0.7.12 |
 | Brokers | RabbitMQ 3.13 and 4.x, via `acemq-transport-rabbitmq` |
 
 Spring's own artifacts are `provided`: this starter never brings a Boot version of its own
