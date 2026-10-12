@@ -46,7 +46,7 @@ Then add the AceMQ repository and starter to `pom.xml`:
 <dependency>
   <groupId>org.acemq</groupId>
   <artifactId>acemq-spring-boot-starter</artifactId>
-  <version>0.2.2</version>
+  <version>0.3.0</version>
 </dependency>
 ```
 

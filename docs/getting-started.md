@@ -55,7 +55,7 @@ dependency.
 <dependency>
   <groupId>org.acemq</groupId>
   <artifactId>acemq-spring-boot-starter</artifactId>
-  <version>0.2.2</version>
+  <version>0.3.0</version>
 </dependency>
 ```
 
@@ -68,7 +68,7 @@ repositories {
 }
 
 dependencies {
-    implementation("org.acemq:acemq-spring-boot-starter:0.2.2")
+    implementation("org.acemq:acemq-spring-boot-starter:0.3.0")
 }
 ```
 
