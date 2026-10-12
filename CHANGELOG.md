@@ -9,10 +9,28 @@ release train as much as it tracks AceMQ's.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-12
+
 ### Changed
 
-- **The library moves from 0.7.3 to 0.7.12.** `<acemq.version>` follows the libraries
-  workspace's released line again; nothing in the starter's API changes with it.
+- **Built on `acemq-java-amqp` 0.7.13** (was 0.7.3 in 0.2.0, by way of 0.7.12 on the main
+  branch). `<acemq.version>` follows the libraries workspace's released line again; nothing
+  in the starter's API changes with it. What an application gains:
+  - **A stream reader resumes after a reconnect**, from where it left off, rather than
+    stopping when the connection drops.
+  - **What the library publishes on your behalf is always confirmed, and kept when
+    unroutable**: retry hops, dead-lettering and parking, the outbox relay, replay, the
+    scheduler, and pipeline and routing-slip hops. That holds with
+    `acemq.publisher-confirms: false`, which now governs only the application's own
+    publishes.
+  - **A stream's `x-max-age` is spelled `1h`**, the same value the other AceMQ libraries
+    declare, so a stream declared from Java and from another language agrees.
+
+### Documentation
+
+- `acemq.publisher-confirms` in [Publishing](docs/publishing.md) and
+  [Configuration](docs/configuration.md), and its property description, say that it
+  applies to the application's publishes and not to the library's own.
 
 ## [0.2.0] - 2026-09-26
 

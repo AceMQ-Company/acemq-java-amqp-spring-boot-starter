@@ -76,7 +76,9 @@ public class AceMqProperties {
 
     /**
      * Publisher confirms. On, and turning them off means a successful send no longer means
-     * the broker has the message.
+     * the broker has the message. Applies to application publishes only: the library's own
+     * publishes on the application's behalf (retry hops, dead-lettering and parking, outbox
+     * relay, replay, scheduler, pipeline and routing-slip hops) are always confirmed.
      */
     private boolean publisherConfirms = true;
 

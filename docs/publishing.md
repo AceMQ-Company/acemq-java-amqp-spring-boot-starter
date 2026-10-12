@@ -69,6 +69,12 @@ result.latency();     // how long the confirm took
 `PublishFailedException` when the confirm does not arrive inside
 `acemq.confirm-timeout`, or arrives as a negative acknowledgement.
 
+**`acemq.publisher-confirms: false` applies to your publishes, not the library's.** What
+the library publishes on your behalf — retry hops, dead-lettering and parking, the outbox
+relay, replay, the scheduler, and pipeline and routing-slip hops — is always confirmed, even
+with confirms turned off, because each of those settles or deletes the original only once
+the broker has the copy.
+
 **`routed()` is false, not an exception, for a message nothing was listening for.** A publish
 to a routing key with no matching binding is confirmed by the broker and then discarded.
 That is usually a topology mistake rather than a runtime one, so it is reported rather than
