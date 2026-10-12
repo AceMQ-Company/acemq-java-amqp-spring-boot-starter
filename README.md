@@ -2,7 +2,7 @@
 
 [![ci](https://github.com/AceMQ-Company/acemq-java-amqp-spring-boot-starter/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/AceMQ-Company/acemq-java-amqp-spring-boot-starter/actions/workflows/ci.yml)
 [![authorship guard](https://github.com/AceMQ-Company/acemq-java-amqp-spring-boot-starter/actions/workflows/attribution-guard.yml/badge.svg?branch=main)](https://github.com/AceMQ-Company/acemq-java-amqp-spring-boot-starter/actions/workflows/attribution-guard.yml)
-[![version](https://img.shields.io/badge/version-0.2.1-blue)](https://github.com/AceMQ-Company/acemq-java-amqp-spring-boot-starter/releases)
+[![version](https://img.shields.io/badge/version-0.2.2-blue)](https://github.com/AceMQ-Company/acemq-java-amqp-spring-boot-starter/releases)
 [![artifacts](https://img.shields.io/badge/artifacts-acemq.org%2Fmaven-blue)](https://acemq.org/maven/)
 [![docs](https://img.shields.io/badge/docs-acemq.org-blue)](https://acemq.org/acemq-java-amqp-spring-boot-starter/)
 [![license](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
@@ -13,10 +13,10 @@ Spring Boot auto-configuration for [acemq-java-amqp](https://github.com/AceMQ-Co
 one connection, a declared topology, annotated listeners, health and metrics — configured
 from `application.yaml` and nothing else.
 
-> **Status: `0.2.1`, published.** 49 unit tests and 3 integration tests against
+> **Status: `0.2.2`, published.** 49 unit tests and 3 integration tests against
 > RabbitMQ 4 in Testcontainers, run on Spring Boot 3.5.7, 4.0.6 and 4.1.0.
 > Artifacts are on the [Maven repository](https://acemq-company.github.io/maven/),
-> and resolve `acemq-java-amqp` 0.7.13.
+> and resolve `acemq-java-amqp` 0.7.14.
 
 ```yaml
 acemq:
@@ -87,7 +87,7 @@ choose and nothing to configure.
 <dependency>
   <groupId>org.acemq</groupId>
   <artifactId>acemq-spring-boot-starter</artifactId>
-  <version>0.2.1</version>
+  <version>0.2.2</version>
 </dependency>
 ```
 

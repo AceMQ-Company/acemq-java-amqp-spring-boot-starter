@@ -9,6 +9,23 @@ release train as much as it tracks AceMQ's.
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-10-12
+
+### Changed
+
+- **Built on `acemq-java-amqp` 0.7.14** (was 0.7.13). Nothing in the starter's API changes
+  with it. What an application gains:
+  - **A scheduled message that falls due while its target is unroutable is kept**, and
+    retried every 10 seconds until the route exists, instead of being dead-lettered to
+    `acemq.schedule.due.dlq`. The same holds when scheduling: `Scheduler.in` and
+    `Scheduler.at` with a time already due no longer throw because the target cannot be
+    routed yet.
+  - **A retry hop whose publish fails affects only that message.** It is requeued and the
+    consumer keeps its channel, where before the channel closed and every message in flight
+    on it was redelivered.
+  - **`com.rabbitmq:amqp-client` 5.37.0**, past a denial of service in the JSON-RPC mapper of
+    5.36.0 and earlier.
+
 ## [0.2.1] - 2026-10-12
 
 ### Changed
