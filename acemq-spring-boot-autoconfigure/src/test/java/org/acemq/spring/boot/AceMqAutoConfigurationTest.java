@@ -62,6 +62,44 @@ class AceMqAutoConfigurationTest {
     }
 
     @Test
+    void connectionDetailsReplaceTheAddressInTheProperties() {
+        // What a Docker Compose or Testcontainers service connection does: register its own
+        // AceMqConnectionDetails, which wins over acemq.url and the credentials.
+        String broker = "memory://details-" + BROKERS.incrementAndGet();
+        runner.withPropertyValues("acemq.username=from-properties", "acemq.confirm-timeout=4s")
+                .withBean(AceMqConnectionDetails.class, () -> new AceMqConnectionDetails() {
+                    @Override
+                    public String getUrl() {
+                        return broker;
+                    }
+
+                    @Override
+                    public String getUsername() {
+                        return "from-details";
+                    }
+                })
+                .run(context -> {
+                    ConnectionConfig config = context.getBean(ConnectionConfig.class);
+                    assertThat(config.url()).isEqualTo(broker);
+                    assertThat(config.username()).isEqualTo("from-details");
+                    // Everything that is not an address still comes from acemq.*.
+                    assertThat(config.confirmTimeout()).hasSeconds(4);
+                    assertThat(context).hasSingleBean(AceMqConnectionDetails.class);
+                });
+    }
+
+    @Test
+    void connectionDetailsComeFromThePropertiesByDefault() {
+        runner.withPropertyValues("acemq.username=app", "acemq.virtual-host=orders")
+                .run(context -> {
+                    AceMqConnectionDetails details = context.getBean(AceMqConnectionDetails.class);
+                    assertThat(details.getUrl()).startsWith("memory://");
+                    assertThat(details.getUsername()).isEqualTo("app");
+                    assertThat(details.getVirtualHost()).isEqualTo("orders");
+                });
+    }
+
+    @Test
     void appliesTheProperties() {
         runner.withPropertyValues(
                         "acemq.client-name=orders-service",

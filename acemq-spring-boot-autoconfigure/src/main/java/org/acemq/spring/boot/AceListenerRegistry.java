@@ -21,8 +21,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.acemq.amqp.api.RetryPolicy;
+import org.acemq.amqp.api.Topology;
+import org.acemq.amqp.api.TopologyPlan;
 import org.acemq.amqp.core.AceMq;
 import org.acemq.amqp.core.ConsumerGroup;
 import org.acemq.amqp.core.ConsumerOptions;
@@ -47,14 +50,26 @@ public class AceListenerRegistry implements SmartLifecycle {
 
     private final AceMq aceMq;
     private final AceMqProperties.Listener defaults;
+    private final Set<String> declaredQueues;
     private final List<AceListenerEndpoint> endpoints = new ArrayList<>();
     private final Map<String, ConsumerGroup> running = new ConcurrentHashMap<>();
 
     private volatile boolean started;
 
     public AceListenerRegistry(AceMq aceMq, AceMqProperties.Listener defaults) {
+        this(aceMq, defaults, Set.of());
+    }
+
+    /**
+     * @param aceMq the connection
+     * @param defaults the {@code acemq.listener.*} configuration
+     * @param declaredQueues queues the application's topology creates before listeners start,
+     *     which are therefore not asked about
+     */
+    public AceListenerRegistry(AceMq aceMq, AceMqProperties.Listener defaults, Set<String> declaredQueues) {
         this.aceMq = aceMq;
         this.defaults = defaults;
+        this.declaredQueues = Set.copyOf(declaredQueues);
     }
 
     /**
@@ -92,38 +107,114 @@ public class AceListenerRegistry implements SmartLifecycle {
         return Map.copyOf(running);
     }
 
+    /**
+     * Starts every listener with auto-startup on, after checking that their queues exist.
+     *
+     * <p>The check is here, at lifecycle start, rather than when the method is found: by now
+     * the declared topology has been applied and every bean that declares a queue in its own
+     * initialisation has run, so a queue still missing is missing for real. Every missing
+     * queue is reported at once, so a deployment with three typos fails once, not three times.
+     */
     @Override
-    public void start() {
+    public synchronized void start() {
         if (started) {
             return;
         }
-        started = true;
+        List<AceListenerEndpoint> toStart = new ArrayList<>();
+        List<String> missing = new ArrayList<>();
         for (AceListenerEndpoint endpoint : endpoints) {
             if (!endpoint.isAutoStartup()) {
                 log.debug("listener {} not started: auto-startup is off", endpoint.id());
-                continue;
+            } else if (queueMissing(endpoint)) {
+                missing.add(describeMissing(endpoint));
+            } else {
+                toStart.add(endpoint);
             }
+        }
+        if (!missing.isEmpty()) {
+            if (defaults.getMissingQueue() == AceMqProperties.Listener.MissingQueue.FAIL) {
+                throw new IllegalStateException(String.join("\n", missing)
+                        + "\nDeclare the queue under acemq.topology.queues, create it on the broker, or set "
+                        + "acemq.listener.missing-queue=warn to start without these listeners.");
+            }
+            for (String line : missing) {
+                log.warn("{}; the listener stays stopped until it is started by id", line);
+            }
+        }
+        started = true;
+        for (AceListenerEndpoint endpoint : toStart) {
             start(endpoint);
         }
     }
 
     /**
-     * Starts one listener that was registered with auto-startup off.
+     * Starts one listener: one registered with auto-startup off, one left stopped because its
+     * queue was missing, or one stopped with {@link #stop(String)}.
      *
      * @param id the listener id
      * @return the group that is now running
+     * @throws IllegalArgumentException when no listener has that id
+     * @throws IllegalStateException when the listener's queue does not exist
      */
-    public ConsumerGroup start(String id) {
+    public synchronized ConsumerGroup start(String id) {
         ConsumerGroup already = running.get(id);
         if (already != null) {
             return already;
         }
+        AceListenerEndpoint endpoint = endpoint(id);
+        if (queueMissing(endpoint)) {
+            throw new IllegalStateException(describeMissing(endpoint));
+        }
+        return start(endpoint);
+    }
+
+    /**
+     * Stops one listener: it stops taking messages, waits up to
+     * {@code acemq.listener.shutdown-timeout} for the ones in flight, and closes. The
+     * listener stays registered and {@link #start(String)} starts it again.
+     *
+     * @param id the listener id
+     * @return whether everything in flight finished before the timeout; messages that did not
+     *     are redelivered
+     * @throws IllegalArgumentException when no listener has that id
+     */
+    public synchronized boolean stop(String id) {
+        endpoint(id);
+        ConsumerGroup group = running.remove(id);
+        if (group == null) {
+            return true;
+        }
+        boolean drained = group.drain(defaults.getShutdownTimeout());
+        group.close();
+        log.info("listener {} stopped", id);
+        return drained;
+    }
+
+    private AceListenerEndpoint endpoint(String id) {
         for (AceListenerEndpoint endpoint : endpoints) {
             if (endpoint.id().equals(id)) {
-                return start(endpoint);
+                return endpoint;
             }
         }
         throw new IllegalArgumentException("no listener with id '" + id + "'");
+    }
+
+    /**
+     * Asks the broker whether the queue exists, through the library's topology planner,
+     * which asks passively and creates nothing. A queue it would have to create is missing.
+     */
+    private boolean queueMissing(AceListenerEndpoint endpoint) {
+        if (declaredQueues.contains(endpoint.queue())) {
+            return false;
+        }
+        TopologyPlan plan = aceMq.topology().plan(Topology.define().queue(endpoint.queue()).build());
+        return plan.actions().stream().anyMatch(action -> action.kind() == TopologyPlan.Kind.CREATE);
+    }
+
+    private static String describeMissing(AceListenerEndpoint endpoint) {
+        return "@AceListener " + endpoint.id() + " (bean '" + endpoint.beanName() + "', method "
+                + endpoint.method().getName() + ") listens on queue '" + endpoint.queue()
+                + "', which does not exist";
     }
 
     private ConsumerGroup start(AceListenerEndpoint endpoint) {
@@ -163,7 +254,7 @@ public class AceListenerRegistry implements SmartLifecycle {
     }
 
     @Override
-    public void stop() {
+    public synchronized void stop() {
         if (!started) {
             return;
         }

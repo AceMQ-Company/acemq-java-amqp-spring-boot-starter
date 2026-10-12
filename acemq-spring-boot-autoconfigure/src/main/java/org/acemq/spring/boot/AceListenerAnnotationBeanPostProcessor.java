@@ -104,6 +104,7 @@ public class AceListenerAnnotationBeanPostProcessor implements BeanPostProcessor
                 payloadType,
                 takesMessage,
                 bean,
+                beanName,
                 method);
     }
 

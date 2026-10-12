@@ -1,0 +1,24 @@
+# Started and removed by DockerComposeIT through Spring Boot's Docker Compose support.
+# Its own project name and an ephemeral host port, so it never collides with a broker
+# that is already running on this machine or on a CI runner.
+name: acemq-starter-compose-it
+
+services:
+  rabbitmq:
+    image: rabbitmq:4-management
+    hostname: rabbitmq
+    ports:
+      - '5672'
+    environment:
+      RABBITMQ_DEFAULT_USER: acemq
+      RABBITMQ_DEFAULT_PASS: compose
+      # The cookie as an Erlang argument rather than a file: on some Docker Desktop hosts
+      # the image cannot read the cookie file it writes, and the broker exits during
+      # prelaunch. Harmless where the file works.
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: "-setcookie acemq-compose-it"
+      RABBITMQ_CTL_ERL_ARGS: "-setcookie acemq-compose-it"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
+      interval: 2s
+      timeout: 10s
+      retries: 60

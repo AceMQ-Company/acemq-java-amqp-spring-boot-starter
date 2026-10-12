@@ -1,1 +1,2 @@
 org.acemq.spring.boot.AceMqAutoConfiguration
+org.acemq.spring.boot.actuate.AceMqEndpointAutoConfiguration

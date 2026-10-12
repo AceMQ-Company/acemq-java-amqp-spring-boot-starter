@@ -38,6 +38,7 @@ public final class AceListenerEndpoint {
     private final Class<?> payloadType;
     private final boolean takesMessage;
     private final Object bean;
+    private final String beanName;
     private final Method method;
 
     AceListenerEndpoint(
@@ -49,8 +50,10 @@ public final class AceListenerEndpoint {
             Class<?> payloadType,
             boolean takesMessage,
             Object bean,
+            String beanName,
             Method method) {
         this.id = id;
+        this.beanName = beanName;
         this.queue = queue;
         this.prefetch = prefetch;
         this.concurrency = concurrency;
@@ -80,6 +83,16 @@ public final class AceListenerEndpoint {
 
     public boolean isAutoStartup() {
         return autoStartup;
+    }
+
+    /** The name of the bean that declares the method. */
+    public String beanName() {
+        return beanName;
+    }
+
+    /** The annotated method. */
+    public Method method() {
+        return method;
     }
 
     /** The type messages are decoded into, which is the parameter type or its Message type. */

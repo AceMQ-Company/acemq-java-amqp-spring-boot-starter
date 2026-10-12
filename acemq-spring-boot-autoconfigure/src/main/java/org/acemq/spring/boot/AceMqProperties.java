@@ -511,7 +511,30 @@ public class AceMqProperties {
         /** Requeue a message whose handler threw, rather than dead-lettering it. */
         private boolean requeueOnFailure;
 
+        /**
+         * What to do when a listener's queue does not exist as it starts: fail the startup
+         * naming the listener, its bean and the queue, or log a warning and leave that
+         * listener stopped. Queues declared under acemq.topology.queues are not asked about.
+         */
+        private MissingQueue missingQueue = MissingQueue.FAIL;
+
         private final Retry retry = new Retry();
+
+        public MissingQueue getMissingQueue() {
+            return missingQueue;
+        }
+
+        public void setMissingQueue(MissingQueue missingQueue) {
+            this.missingQueue = missingQueue;
+        }
+
+        /** What a listener whose queue is missing does at startup. */
+        public enum MissingQueue {
+            /** Fail the application's startup. */
+            FAIL,
+            /** Log a warning and leave the listener stopped; it can be started later. */
+            WARN
+        }
 
         public int getPrefetch() {
             return prefetch;

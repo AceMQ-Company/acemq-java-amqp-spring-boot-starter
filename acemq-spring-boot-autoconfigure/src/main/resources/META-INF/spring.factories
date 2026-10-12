@@ -1,0 +1,3 @@
+org.springframework.boot.autoconfigure.service.connection.ConnectionDetailsFactory=\
+org.acemq.spring.boot.docker.AceMqDockerComposeConnectionDetailsFactory,\
+org.acemq.spring.boot.testcontainers.AceMqContainerConnectionDetailsFactory

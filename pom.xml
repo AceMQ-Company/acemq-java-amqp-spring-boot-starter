@@ -162,6 +162,11 @@
           <artifactId>maven-compiler-plugin</artifactId>
           <version>${maven.compiler.plugin.version}</version>
           <configuration>
+            <!-- Keeps parameter names in the bytecode. The actuator endpoint binds
+                 {"state": ...} in a request body to the parameter called state, and
+                 without this javac names it arg1 and every write is a 400. Spring
+                 Boot's own parent sets the same flag; this build does not use it. -->
+            <parameters>true</parameters>
             <annotationProcessorPaths>
               <path>
                 <groupId>org.springframework.boot</groupId>

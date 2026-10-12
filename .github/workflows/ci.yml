@@ -78,6 +78,12 @@ jobs:
           imports=META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports
           unzip -p acemq-spring-boot-autoconfigure/target/acemq-spring-boot-autoconfigure-*.jar "$imports" \
             | grep -qx 'org.acemq.spring.boot.AceMqAutoConfiguration'
+          unzip -p acemq-spring-boot-autoconfigure/target/acemq-spring-boot-autoconfigure-*.jar "$imports" \
+            | grep -qx 'org.acemq.spring.boot.actuate.AceMqEndpointAutoConfiguration'
+          # The service-connection factories are not auto-configurations; Boot's Docker
+          # Compose and Testcontainers support find them through spring.factories.
+          unzip -p acemq-spring-boot-autoconfigure/target/acemq-spring-boot-autoconfigure-*.jar \
+            META-INF/spring.factories | grep -q 'AceMqContainerConnectionDetailsFactory'
           unzip -p acemq-spring-boot-health-boot3/target/acemq-spring-boot-health-boot3-*.jar "$imports" \
             | grep -qx 'org.acemq.spring.boot.health.boot3.AceMqHealthAutoConfiguration'
           unzip -p acemq-spring-boot-health-boot4/target/acemq-spring-boot-health-boot4-*.jar "$imports" \

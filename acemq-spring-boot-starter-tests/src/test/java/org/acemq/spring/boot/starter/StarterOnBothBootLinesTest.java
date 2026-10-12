@@ -22,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 import org.acemq.amqp.core.AceMq;
 import org.acemq.spring.boot.AceListener;
 import org.acemq.spring.boot.AceListenerRegistry;
+import org.acemq.spring.boot.actuate.AceMqEndpoint;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -57,7 +58,8 @@ import org.springframework.stereotype.Component;
         "acemq.topology.queues[0].type=classic",
         "acemq.topology.bindings[0].queue=orders.new",
         "acemq.topology.bindings[0].exchange=orders",
-        "acemq.topology.bindings[0].routing-key=order.created"
+        "acemq.topology.bindings[0].routing-key=order.created",
+        "management.endpoints.web.exposure.include=health,acemq"
 })
 class StarterOnBothBootLinesTest {
 
@@ -89,6 +91,17 @@ class StarterOnBothBootLinesTest {
 
         assertThat(orders.received.await(5, TimeUnit.SECONDS)).isTrue();
         assertThat(listeners.running()).isNotEmpty();
+    }
+
+    @Test
+    void theActuatorEndpointListsTheListener() {
+        // The endpoint's annotations and its availability condition are compiled once,
+        // against Boot 3.5, and have to resolve on whichever line this run is using.
+        AceMqEndpoint endpoint = context.getBean(AceMqEndpoint.class);
+
+        assertThat(endpoint.listeners().listeners()).containsKey("orders");
+        assertThat(endpoint.listener("orders").queue()).isEqualTo("orders.new");
+        assertThat(endpoint.listener("orders").state()).isEqualTo("running");
     }
 
     record Order(String id, int quantity) {}

@@ -108,7 +108,50 @@ class AceMqStarterIT {
                 .run(context -> assertThat(context).hasFailed());
     }
 
+    /**
+     * A listener on a queue nobody created fails the startup with the listener and the queue
+     * named, rather than starting and failing at the broker's first consume.
+     */
+    @Test
+    void aListenerOnAMissingQueueFailsTheStartup() {
+        runner().withUserConfiguration(MissingQueueListener.class).run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context.getStartupFailure())
+                    .rootCause()
+                    .hasMessageContaining("@AceListener missing")
+                    .hasMessageContaining("queue 'orders.nobody-made-this'");
+        });
+    }
+
+    /**
+     * A queue that already exists on the broker -- here a quorum queue another application
+     * declared -- is found by the passive check, and the listener starts.
+     */
+    @Test
+    void aListenerOnAQueueThatAlreadyExistsStarts() {
+        withTopology("orders.preexisting").run(context -> assertThat(context).hasNotFailed());
+
+        runner().withUserConfiguration(PreexistingQueueListener.class).run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context.getBean(AceListenerRegistry.class).running()).containsKey("preexisting");
+        });
+    }
+
     record Order(String id, int quantity) {}
+
+    @Configuration(proxyBeanMethods = false)
+    static class MissingQueueListener {
+
+        @AceListener(queue = "orders.nobody-made-this", id = "missing")
+        void onOrder(Order order) {}
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class PreexistingQueueListener {
+
+        @AceListener(queue = "orders.preexisting", id = "preexisting")
+        void onOrder(Order order) {}
+    }
 
     @Configuration(proxyBeanMethods = false)
     static class Listener {

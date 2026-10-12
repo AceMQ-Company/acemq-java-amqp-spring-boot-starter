@@ -15,6 +15,8 @@
  */
 package org.acemq.spring.boot;
 
+import java.util.HashSet;
+import java.util.Set;
 import org.acemq.amqp.api.Codec;
 import org.acemq.amqp.api.Telemetry;
 import org.acemq.amqp.core.AceMq;
@@ -57,23 +59,39 @@ import org.springframework.core.env.Environment;
 public class AceMqAutoConfiguration {
 
     /**
+     * Where the broker is, read from {@code acemq.*}. Docker Compose and a Testcontainers
+     * {@code @ServiceConnection} each register their own bean of this type, which replaces
+     * this one.
+     *
+     * @param properties the {@code acemq.*} configuration
+     * @return the details
+     */
+    @Bean
+    @ConditionalOnMissingBean(AceMqConnectionDetails.class)
+    public AceMqConnectionDetails aceMqConnectionDetails(AceMqProperties properties) {
+        return AceMqConnections.details(properties);
+    }
+
+    /**
      * The connection configuration, separately from the connection, so an application can
      * see and override it without taking over connecting.
      *
      * @param properties the {@code acemq.*} configuration
+     * @param details where the broker is
      * @param environment used only for {@code spring.application.name}
      * @return the configuration
      */
     @Bean
     @ConditionalOnMissingBean
-    public ConnectionConfig aceMqConnectionConfig(AceMqProperties properties, Environment environment) {
+    public ConnectionConfig aceMqConnectionConfig(
+            AceMqProperties properties, AceMqConnectionDetails details, Environment environment) {
         if (properties.getClientName() == null) {
             // The broker's management UI lists connections by this name. Defaulting it
             // to the application's name costs nothing and is the difference between
             // finding the noisy service in one glance and grepping process lists.
             properties.setClientName(environment.getProperty("spring.application.name", "spring-boot"));
         }
-        return AceMqConnections.from(properties);
+        return AceMqConnections.from(properties, details);
     }
 
     /**
@@ -131,6 +149,11 @@ public class AceMqAutoConfiguration {
     /**
      * The listener registry, which starts and stops the annotated methods.
      *
+     * <p>Queues under {@code acemq.topology.queues} are handed over as already provided for,
+     * so the registry does not ask the broker about them: the topology is applied before any
+     * listener starts, and in {@code validate} mode a missing one has already failed the
+     * startup. A dry run creates nothing, so then every queue is asked about.
+     *
      * @param aceMq the connection
      * @param properties the {@code acemq.*} configuration
      * @return the registry
@@ -138,7 +161,11 @@ public class AceMqAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public AceListenerRegistry aceListenerRegistry(AceMq aceMq, AceMqProperties properties) {
-        return new AceListenerRegistry(aceMq, properties.getListener());
+        Set<String> declared = new HashSet<>();
+        if (properties.getTopology().getApply() != AceMqProperties.Topology.Apply.DRY_RUN) {
+            properties.getTopology().getQueues().forEach(queue -> declared.add(queue.getName()));
+        }
+        return new AceListenerRegistry(aceMq, properties.getListener(), declared);
     }
 
     /**

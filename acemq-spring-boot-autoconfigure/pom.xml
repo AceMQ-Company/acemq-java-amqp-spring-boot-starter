@@ -54,6 +54,43 @@
       <optional>true</optional>
     </dependency>
 
+    <!-- The actuator endpoint, the Docker Compose service connection and the
+         Testcontainers one. Optional, provided, and each behind a condition or a
+         spring.factories entry only its own Boot module reads, so none of them is
+         needed at runtime unless the application already has it. All four kept their
+         packages and signatures between Boot 3.5 and 4, which is why they live here
+         rather than in per-line modules like health does. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-actuator</artifactId>
+      <scope>provided</scope>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-actuator-autoconfigure</artifactId>
+      <scope>provided</scope>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-docker-compose</artifactId>
+      <scope>provided</scope>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-testcontainers</artifactId>
+      <scope>provided</scope>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers</artifactId>
+      <scope>provided</scope>
+      <optional>true</optional>
+    </dependency>
+
     <!-- Writes META-INF/spring-configuration-metadata.json, which is what makes
          acemq.* complete in an IDE. Without it every property is a string
          somebody has to spell correctly from memory. -->
