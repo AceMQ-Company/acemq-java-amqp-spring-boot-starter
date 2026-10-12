@@ -102,6 +102,11 @@ and the arguments. Earlier versions dropped them silently, which is a queue decl
 time-to-live it was given — found, eventually, by a disk filling up. Use `type: classic` when the
 arguments are the point.
 
+**A listener can declare its own queue** with `@AceListener(declare = @AceQueue(...))`, which takes
+these same options — `type`, `arguments`, `deadLetter` — and follows `acemq.topology.apply`. A queue
+declared both ways must be declared the same way, or the startup fails naming the difference.
+[Listeners](listeners.md#declaring-the-queue) has the detail.
+
 ## Listeners
 
 These are the defaults; every `@AceListener` can override the first three.
@@ -124,8 +129,9 @@ exists for exactly that.
 duplicates.** A message still in a handler when the connection closes is redelivered.
 
 **`missing-queue` is checked once, as listeners start** — after the declared topology has
-been applied, so a queue under `acemq.topology.queues` is never asked about (except with
-`apply: dry-run`, which creates nothing). Any other queue is asked about passively, and every
+been applied and after each listener has declared the queue it declares with `@AceQueue`, so a
+queue declared either way is never asked about (except with `apply: dry-run`, which creates
+nothing). Any other queue is asked about passively, and every
 missing one is named in a single startup failure. [Listeners](listeners.md#a-queue-that-does-not-exist)
 has the detail.
 

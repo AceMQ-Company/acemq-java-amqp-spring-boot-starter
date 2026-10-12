@@ -91,4 +91,21 @@ public @interface AceListener {
      * @return "true", "false", a placeholder, or empty
      */
     String autoStartup() default "";
+
+    /**
+     * Declare the queue before consuming it: {@code declare = @AceQueue} for a durable quorum
+     * queue, or {@code declare = @AceQueue(type = Kind.CLASSIC, ...)}. Empty, the default,
+     * declares nothing and the queue has to exist.
+     *
+     * <p>The declaration follows {@code acemq.topology.apply}: {@code create-only} creates the
+     * queue when it is missing, {@code validate} only checks it, and {@code dry-run} does
+     * neither, so the listener is checked as one that declares nothing. It runs when the
+     * listener starts, which for {@code autoStartup = "false"} is when it is started by id.
+     *
+     * <p>The retry ladder's own queues are not declared here; the consumer declares those
+     * itself when {@code acemq.listener.retry.enabled} is set.
+     *
+     * @return at most one declaration
+     */
+    AceQueue[] declare() default {};
 }

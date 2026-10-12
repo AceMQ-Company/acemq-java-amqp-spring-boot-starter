@@ -46,30 +46,7 @@ public final class AceMqTopologies {
         }
         for (AceMqProperties.Topology.Queue queue : properties.getQueues()) {
             require(queue.getName(), "acemq.topology.queues[].name");
-            boolean classic = queue.getType() == AceMqProperties.Topology.Queue.Kind.CLASSIC;
-            // Topology.queue() is a durable quorum queue, which is the library's default,
-            // and it takes no arguments. The quorum-queue arguments people reach for first
-            // (x-max-priority, x-message-ttl on the queue) are the ones RabbitMQ refuses on
-            // a quorum queue anyway, so there is nothing to pass through -- but dropping
-            // them without a word is worse than not offering them. A file that asks for
-            // both is refused, with the queue named, rather than started with half of what
-            // it wrote down.
-            if (!classic && !queue.getArguments().isEmpty()) {
-                throw new IllegalArgumentException(
-                        "acemq.topology.queues[].arguments is not accepted for a quorum queue,"
-                                + " and '" + queue.getName() + "' has "
-                                + queue.getArguments().keySet()
-                                + ". Declare it with type: classic, or drop the arguments.");
-            }
-            if (classic && queue.isDeadLetter()) {
-                builder.classicQueueWithDeadLetter(queue.getName(), queue.getArguments());
-            } else if (classic) {
-                builder.classicQueue(queue.getName(), queue.getArguments());
-            } else if (queue.isDeadLetter()) {
-                builder.queueWithDeadLetter(queue.getName());
-            } else {
-                builder.queue(queue.getName());
-            }
+            queue(builder, queue, "acemq.topology.queues[].arguments");
         }
         for (AceMqProperties.Topology.Binding binding : properties.getBindings()) {
             require(binding.getQueue(), "acemq.topology.bindings[].queue");
@@ -77,6 +54,42 @@ public final class AceMqTopologies {
             builder.bind(binding.getQueue(), binding.getExchange(), binding.getRoutingKey());
         }
         return builder.build();
+    }
+
+    /**
+     * Adds one queue, with its dead-letter queues when it asks for them. Shared by the
+     * properties and by {@link AceQueue}, so a queue means the same thing wherever it is
+     * declared.
+     *
+     * @param builder the topology being built
+     * @param queue the queue
+     * @param arguments where the arguments were written, for the error message
+     */
+    static void queue(Topology.Builder builder, AceMqProperties.Topology.Queue queue, String arguments) {
+        boolean classic = queue.getType() == AceMqProperties.Topology.Queue.Kind.CLASSIC;
+        // Topology.queue() is a durable quorum queue, which is the library's default,
+        // and it takes no arguments. The quorum-queue arguments people reach for first
+        // (x-max-priority, x-message-ttl on the queue) are the ones RabbitMQ refuses on
+        // a quorum queue anyway, so there is nothing to pass through -- but dropping
+        // them without a word is worse than not offering them. A file that asks for
+        // both is refused, with the queue named, rather than started with half of what
+        // it wrote down.
+        if (!classic && !queue.getArguments().isEmpty()) {
+            throw new IllegalArgumentException(
+                    arguments + " is not accepted for a quorum queue,"
+                            + " and '" + queue.getName() + "' has "
+                            + queue.getArguments().keySet()
+                            + ". Declare it with type: classic, or drop the arguments.");
+        }
+        if (classic && queue.isDeadLetter()) {
+            builder.classicQueueWithDeadLetter(queue.getName(), queue.getArguments());
+        } else if (classic) {
+            builder.classicQueue(queue.getName(), queue.getArguments());
+        } else if (queue.isDeadLetter()) {
+            builder.queueWithDeadLetter(queue.getName());
+        } else {
+            builder.queue(queue.getName());
+        }
     }
 
     /**

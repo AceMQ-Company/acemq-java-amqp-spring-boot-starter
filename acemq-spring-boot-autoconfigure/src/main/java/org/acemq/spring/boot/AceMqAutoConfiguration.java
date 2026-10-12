@@ -15,8 +15,6 @@
  */
 package org.acemq.spring.boot;
 
-import java.util.HashSet;
-import java.util.Set;
 import org.acemq.amqp.api.Codec;
 import org.acemq.amqp.api.Telemetry;
 import org.acemq.amqp.core.AceMq;
@@ -149,10 +147,12 @@ public class AceMqAutoConfiguration {
     /**
      * The listener registry, which starts and stops the annotated methods.
      *
-     * <p>Queues under {@code acemq.topology.queues} are handed over as already provided for,
-     * so the registry does not ask the broker about them: the topology is applied before any
-     * listener starts, and in {@code validate} mode a missing one has already failed the
-     * startup. A dry run creates nothing, so then every queue is asked about.
+     * <p>It is handed the declared topology and its apply mode. Queues under
+     * {@code acemq.topology.queues} are not asked about, because the topology is applied before
+     * any listener starts and in {@code validate} mode a missing one has already failed the
+     * startup; a dry run creates nothing, so then every queue is asked about. A listener that
+     * declares its own queue declares it in the same mode, and has to agree with the topology
+     * when both declare it.
      *
      * @param aceMq the connection
      * @param properties the {@code acemq.*} configuration
@@ -161,11 +161,11 @@ public class AceMqAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public AceListenerRegistry aceListenerRegistry(AceMq aceMq, AceMqProperties properties) {
-        Set<String> declared = new HashSet<>();
-        if (properties.getTopology().getApply() != AceMqProperties.Topology.Apply.DRY_RUN) {
-            properties.getTopology().getQueues().forEach(queue -> declared.add(queue.getName()));
-        }
-        return new AceListenerRegistry(aceMq, properties.getListener(), declared);
+        return new AceListenerRegistry(
+                aceMq,
+                properties.getListener(),
+                AceMqTopologies.from(properties.getTopology()),
+                AceMqTopologies.mode(properties.getTopology().getApply()));
     }
 
     /**

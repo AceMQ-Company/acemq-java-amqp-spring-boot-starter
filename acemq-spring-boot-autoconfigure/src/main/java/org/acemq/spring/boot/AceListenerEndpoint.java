@@ -17,8 +17,10 @@ package org.acemq.spring.boot;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Optional;
 import org.acemq.amqp.api.Message;
 import org.acemq.amqp.api.MessageHandler;
+import org.acemq.amqp.api.Topology;
 import org.springframework.util.ReflectionUtils;
 
 /**
@@ -40,6 +42,7 @@ public final class AceListenerEndpoint {
     private final Object bean;
     private final String beanName;
     private final Method method;
+    private final Topology declaration;
 
     AceListenerEndpoint(
             String id,
@@ -51,7 +54,8 @@ public final class AceListenerEndpoint {
             boolean takesMessage,
             Object bean,
             String beanName,
-            Method method) {
+            Method method,
+            Topology declaration) {
         this.id = id;
         this.beanName = beanName;
         this.queue = queue;
@@ -62,6 +66,7 @@ public final class AceListenerEndpoint {
         this.takesMessage = takesMessage;
         this.bean = bean;
         this.method = method;
+        this.declaration = declaration;
         ReflectionUtils.makeAccessible(method);
     }
 
@@ -93,6 +98,14 @@ public final class AceListenerEndpoint {
     /** The annotated method. */
     public Method method() {
         return method;
+    }
+
+    /**
+     * What the listener declares before it starts, from {@link AceListener#declare()}: the
+     * queue, and its dead-letter queues when it asked for them.
+     */
+    public Optional<Topology> declaration() {
+        return Optional.ofNullable(declaration);
     }
 
     /** The type messages are decoded into, which is the parameter type or its Message type. */

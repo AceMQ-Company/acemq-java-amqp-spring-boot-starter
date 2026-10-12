@@ -20,6 +20,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import org.acemq.amqp.api.Topology;
+import org.acemq.amqp.api.TopologyPlan;
 import org.acemq.amqp.core.AceMq;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -137,7 +139,72 @@ class AceMqStarterIT {
         });
     }
 
+    /**
+     * A listener that declares its own queue gets a durable quorum queue by default, with
+     * its dead-letter queues when it asks for them, and consumes from it -- the declaration
+     * the in-memory transport cannot make.
+     */
+    @Test
+    void aListenerDeclaresItsOwnQuorumQueueAndConsumes() {
+        runner().withUserConfiguration(SelfDeclaringListener.class).run(context -> {
+            assertThat(context).hasNotFailed();
+            AceMq mq = context.getBean(AceMq.class);
+            // Every queue the declaration asked for is on the broker, as asked: a quorum
+            // queue dead-lettering to orders.self.dlq, and the two classic queues behind it.
+            TopologyPlan plan = mq.topology().plan(Topology.define().queueWithDeadLetter("orders.self").build());
+            assertThat(plan.actions())
+                    .filteredOn(action -> action.description().startsWith("queue "))
+                    .hasSize(3)
+                    .allMatch(action -> action.kind() == TopologyPlan.Kind.PRESENT);
+
+            mq.publisher("", "orders.self", Order.class).send(new Order("A-3", 4));
+
+            SelfDeclaringListener listener = context.getBean(SelfDeclaringListener.class);
+            assertThat(listener.received.await(10, TimeUnit.SECONDS)).isTrue();
+            assertThat(mq.messageCount("orders.self.dlq")).isZero();
+            assertThat(mq.messageCount("orders.self.parked")).isZero();
+        });
+    }
+
+    /**
+     * A listener whose declaration disagrees with the queue on the broker fails the startup
+     * naming the difference, before the broker's PRECONDITION_FAILED would have closed the
+     * channel.
+     */
+    @Test
+    void aListenerDeclaringAnExistingQueueDifferentlyFailsTheStartup() {
+        runner().withPropertyValues(
+                        "acemq.topology.queues[0].name=orders.classic-already",
+                        "acemq.topology.queues[0].type=classic")
+                .run(context -> assertThat(context).hasNotFailed());
+
+        runner().withUserConfiguration(DisagreeingListener.class).run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context.getStartupFailure()).rootCause()
+                    .hasMessageContaining("orders.classic-already")
+                    .hasMessageContaining("do not match");
+        });
+    }
+
     record Order(String id, int quantity) {}
+
+    @Configuration(proxyBeanMethods = false)
+    static class SelfDeclaringListener {
+
+        final CountDownLatch received = new CountDownLatch(1);
+
+        @AceListener(queue = "orders.self", declare = @AceQueue(deadLetter = true))
+        void onOrder(Order order) {
+            received.countDown();
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class DisagreeingListener {
+
+        @AceListener(queue = "orders.classic-already", declare = @AceQueue)
+        void onOrder(Order order) {}
+    }
 
     @Configuration(proxyBeanMethods = false)
     static class MissingQueueListener {

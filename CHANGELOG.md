@@ -26,6 +26,20 @@ release train as much as it tracks AceMQ's.
   This is a change in behaviour for an application that starts with a listener on a queue
   something else creates later; `acemq.listener.missing-queue: warn` restores starting, and
   the listener can then be started once the queue exists.
+- **A listener can declare the queue it consumes**: `@AceListener(queue = "orders.new",
+  declare = @AceQueue)` declares a durable quorum queue, and `@AceQueue` takes the options of an
+  entry under `acemq.topology.queues` with the same names — `type` (quorum or classic),
+  `arguments` (as `name=value`, classic queues only, numbers and booleans sent as such) and
+  `deadLetter` (the `.dlq` and `.parked` queues and `acemq.dlx` too). The declaration follows
+  `acemq.topology.apply` — `create-only` creates, `validate` only checks, `dry-run` declares
+  nothing — and runs as the listener starts, before the missing-queue check, so a listener with
+  `autoStartup = "false"` declares when it is started by id. A queue declared both on a listener
+  and under `acemq.topology.queues`, or by two listeners, with a different type or arguments
+  fails the startup naming both, rather than reaching the broker as a `PRECONDITION_FAILED`.
+  The retry ladder's own queues are still declared by the consumer, not by this.
+  `AceListenerEndpoint.declaration()` returns what a listener declares, and
+  `AceListenerRegistry` now takes the declared `Topology` and its `ApplyMode` in place of a set of
+  queue names.
 - **Docker Compose and Testcontainers service connections.** A new `AceMqConnectionDetails`
   (a Spring Boot `ConnectionDetails`) carries the broker's URL, username, password and
   virtual host, and the auto-configuration connects with it. By default it is read from

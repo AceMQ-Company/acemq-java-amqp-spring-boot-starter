@@ -67,6 +67,7 @@ void onOrder(Order order) { }
 | `prefetch` | `acemq.listener.prefetch` | Unacknowledged messages allowed at once |
 | `concurrency` | `acemq.listener.concurrency` | Consumers on this queue |
 | `autoStartup` | `acemq.listener.auto-startup` | A string, so it can be a placeholder |
+| `declare` | none | `@AceQueue`: declare the queue before consuming it — see [below](#declaring-the-queue) |
 
 **Concurrency above 1 gives up ordering.** Messages on one queue are handled in parallel,
 which is usually what a service wants and occasionally the cause of a bug that only appears
@@ -144,7 +145,7 @@ goes when the ladder gives up, how to get it back, and how to survive the redeli
 
 ## What the annotation does not reach
 
-The annotation has five attributes and there will not be many more. Three things it cannot do,
+The annotation has six attributes and there will not be many more. Three things it cannot do,
 each with the same answer — declare that consumer as a `ConsumerGroup` bean and use the library's
 own API:
 
@@ -183,7 +184,7 @@ broker's first refusal:
 
 ```
 @AceListener orders (bean 'orderListener', method onOrder) listens on queue 'orders.nwe', which does not exist
-Declare the queue under acemq.topology.queues, create it on the broker, or set acemq.listener.missing-queue=warn to start without these listeners.
+Declare the queue under acemq.topology.queues or with @AceListener(declare = @AceQueue), create it on the broker, or set acemq.listener.missing-queue=warn to start without these listeners.
 ```
 
 The check runs when listeners start, which is after the declared topology has been applied
@@ -199,6 +200,60 @@ logged as a warning, and those listeners stay stopped. Start one later with
 both check the queue again and refuse while it is still missing.
 
 A listener with `autoStartup = "false"` is not checked until it is started.
+
+## Declaring the queue
+
+A listener can declare the queue it consumes instead of relying on something else to:
+
+```java
+@AceListener(queue = "orders.new", declare = @AceQueue)
+void onOrder(Order order) { }
+
+@AceListener(queue = "audit.log", declare = @AceQueue(
+        type = Kind.CLASSIC,                       // AceMqProperties.Topology.Queue.Kind
+        arguments = "x-message-ttl=${audit.ttl:60000}",
+        deadLetter = true))
+void onAudit(AuditLine line) { }
+```
+
+`@AceQueue` has the options of an entry under `acemq.topology.queues`, with the same names and
+defaults, and is declared through the same topology:
+
+| Attribute | Default | Same as |
+|---|---|---|
+| `type` | `QUORUM` | `acemq.topology.queues[].type`; the queue is durable either way |
+| `arguments` | none | `acemq.topology.queues[].arguments`, written `name=value`; classic queues only, refused on a quorum queue |
+| `deadLetter` | `false` | `acemq.topology.queues[].dead-letter`: also `{queue}.dlq`, `{queue}.parked` and `acemq.dlx` |
+
+An argument value that is a whole number is sent as a number, and `true` or `false` as a
+boolean — `x-message-ttl` as the string `"60000"` is refused by the broker. Placeholders are
+resolved.
+
+**It follows `acemq.topology.apply`.** With `create-only` the queue is created if it is missing
+and left alone if it is there; with `validate` it is only checked, and a missing one fails the
+startup; with `dry-run` nothing is declared and the listener is checked like one that declares
+nothing. The declaration happens as the listener starts, before the
+[missing-queue check](#a-queue-that-does-not-exist), so a self-declaring listener passes
+it — and a listener with `autoStartup = "false"` declares when it is started by id.
+
+**One queue, one declaration.** A queue declared both here and under `acemq.topology.queues`, or
+by two listeners, must be declared the same way — the same type and the same arguments,
+dead-letter ones included — or the startup fails naming both:
+
+```
+@AceListener audit (bean 'auditListener', method onAudit) declares queue 'audit.log' differently from acemq.topology.queues: arguments {x-message-ttl=60000} here, {x-dead-letter-exchange=acemq.dlx, x-dead-letter-routing-key=audit.log.dlq, x-message-ttl=60000} there. Declare it the same way in both, or in one place only.
+```
+
+The broker would refuse the second declaration with `PRECONDITION_FAILED` anyway, but only when
+it got there, and closing the channel. When the two agree, the topology's declaration is the one
+applied. A queue already on the broker with different settings fails the same way, through
+the library's drift check — AMQP cannot change a queue in place.
+
+**The retry ladder is not part of it.** With `acemq.listener.retry.enabled` the consumer declares
+its own rungs, `.dlq` and `.parked` as it starts, whether or not the listener declares its queue.
+What `deadLetter` adds is the broker-side half: the source queue's `x-dead-letter-exchange`, which
+the consumer cannot set because it does not declare the source queue. Use both together for a
+queue whose failures must never be dropped.
 
 ## The registry
 

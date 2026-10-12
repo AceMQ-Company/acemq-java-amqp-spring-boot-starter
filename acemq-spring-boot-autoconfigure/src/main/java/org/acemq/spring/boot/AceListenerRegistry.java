@@ -17,12 +17,14 @@ package org.acemq.spring.boot;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import org.acemq.amqp.api.ApplyMode;
 import org.acemq.amqp.api.RetryPolicy;
 import org.acemq.amqp.api.Topology;
 import org.acemq.amqp.api.TopologyPlan;
@@ -50,26 +52,33 @@ public class AceListenerRegistry implements SmartLifecycle {
 
     private final AceMq aceMq;
     private final AceMqProperties.Listener defaults;
-    private final Set<String> declaredQueues;
+    private final ApplyMode mode;
+    private final Map<String, Topology.QueueSpec> topologyQueues = new HashMap<>();
     private final List<AceListenerEndpoint> endpoints = new ArrayList<>();
     private final Map<String, ConsumerGroup> running = new ConcurrentHashMap<>();
 
     private volatile boolean started;
 
     public AceListenerRegistry(AceMq aceMq, AceMqProperties.Listener defaults) {
-        this(aceMq, defaults, Set.of());
+        this(aceMq, defaults, Topology.define().build(), ApplyMode.CREATE_ONLY);
     }
 
     /**
      * @param aceMq the connection
      * @param defaults the {@code acemq.listener.*} configuration
-     * @param declaredQueues queues the application's topology creates before listeners start,
-     *     which are therefore not asked about
+     * @param topology the {@code acemq.topology} the application declares, applied before
+     *     listeners start: its queues are not asked about, unless {@code mode} is a dry run, and
+     *     a listener that declares one of them has to declare it the same way
+     * @param mode {@code acemq.topology.apply}, which {@link AceListener#declare()} follows too
      */
-    public AceListenerRegistry(AceMq aceMq, AceMqProperties.Listener defaults, Set<String> declaredQueues) {
+    public AceListenerRegistry(
+            AceMq aceMq, AceMqProperties.Listener defaults, Topology topology, ApplyMode mode) {
         this.aceMq = aceMq;
         this.defaults = defaults;
-        this.declaredQueues = Set.copyOf(declaredQueues);
+        this.mode = mode;
+        for (Topology.QueueSpec queue : topology.queues()) {
+            topologyQueues.put(queue.name(), queue);
+        }
     }
 
     /**
@@ -82,6 +91,15 @@ public class AceListenerRegistry implements SmartLifecycle {
             if (existing.id().equals(endpoint.id())) {
                 throw new IllegalStateException("two listeners share the id '" + endpoint.id()
                         + "'; give one of them an explicit id");
+            }
+        }
+        Topology.QueueSpec declared = declaredQueue(endpoint);
+        if (declared != null) {
+            checkAgreement(endpoint, declared, topologyQueues.get(endpoint.queue()), "acemq.topology.queues");
+            for (AceListenerEndpoint existing : endpoints) {
+                if (existing.queue().equals(endpoint.queue())) {
+                    checkAgreement(endpoint, declared, declaredQueue(existing), "@AceListener " + existing.id());
+                }
             }
         }
         endpoints.add(endpoint);
@@ -108,7 +126,8 @@ public class AceListenerRegistry implements SmartLifecycle {
     }
 
     /**
-     * Starts every listener with auto-startup on, after checking that their queues exist.
+     * Starts every listener with auto-startup on, after declaring the queues they declare
+     * and checking that the rest exist.
      *
      * <p>The check is here, at lifecycle start, rather than when the method is found: by now
      * the declared topology has been applied and every bean that declares a queue in its own
@@ -134,7 +153,8 @@ public class AceListenerRegistry implements SmartLifecycle {
         if (!missing.isEmpty()) {
             if (defaults.getMissingQueue() == AceMqProperties.Listener.MissingQueue.FAIL) {
                 throw new IllegalStateException(String.join("\n", missing)
-                        + "\nDeclare the queue under acemq.topology.queues, create it on the broker, or set "
+                        + "\nDeclare the queue under acemq.topology.queues or with @AceListener(declare = @AceQueue), "
+                        + "create it on the broker, or set "
                         + "acemq.listener.missing-queue=warn to start without these listeners.");
             }
             for (String line : missing) {
@@ -199,12 +219,83 @@ public class AceListenerRegistry implements SmartLifecycle {
         throw new IllegalArgumentException("no listener with id '" + id + "'");
     }
 
+    /** The queue a listener declares for itself, or null when it declares none. */
+    private static Topology.QueueSpec declaredQueue(AceListenerEndpoint endpoint) {
+        return endpoint.declaration()
+                .flatMap(topology -> topology.queues().stream()
+                        .filter(queue -> queue.name().equals(endpoint.queue()))
+                        .findFirst())
+                .orElse(null);
+    }
+
+    /**
+     * Refuses a queue declared two different ways. The broker would refuse the second
+     * declaration with PRECONDITION_FAILED anyway, but only once it is reached, and with a
+     * message that names neither declaration.
+     */
+    private static void checkAgreement(
+            AceListenerEndpoint endpoint, Topology.QueueSpec declared, Topology.QueueSpec other, String where) {
+        if (other == null) {
+            return;
+        }
+        List<String> differences = new ArrayList<>();
+        if (declared.quorum() != other.quorum()) {
+            differences.add("type " + type(declared) + " here, " + type(other) + " there");
+        }
+        Map<String, String> ours = comparable(declared.arguments());
+        Map<String, String> theirs = comparable(other.arguments());
+        if (!ours.equals(theirs)) {
+            differences.add("arguments " + ours + " here, " + theirs + " there");
+        }
+        if (!differences.isEmpty()) {
+            throw new IllegalStateException("@AceListener " + endpoint.id() + " (bean '" + endpoint.beanName()
+                    + "', method " + endpoint.method().getName() + ") declares queue '" + endpoint.queue()
+                    + "' differently from " + where + ": " + String.join("; ", differences)
+                    + ". Declare it the same way in both, or in one place only.");
+        }
+    }
+
+    private static String type(Topology.QueueSpec queue) {
+        return queue.quorum() ? "quorum" : "classic";
+    }
+
+    /**
+     * Arguments by their written value: 60000 from YAML is an Integer, from an annotation a
+     * Long, and from a properties file a String, and all three are the same declaration.
+     */
+    private static Map<String, String> comparable(Map<String, Object> arguments) {
+        Map<String, String> comparable = new java.util.TreeMap<>();
+        arguments.forEach((name, value) -> comparable.put(name, Objects.toString(value)));
+        return comparable;
+    }
+
+    /**
+     * Declares what the listener asked for, following {@code acemq.topology.apply}. A queue the
+     * application's topology already declares is left alone: it was applied before any listener
+     * started, and declared the same way, which {@link #register} made sure of.
+     *
+     * @return whether the queue is now accounted for, so the missing-queue check can skip it
+     */
+    private boolean declare(AceListenerEndpoint endpoint) {
+        if (topologyQueues.containsKey(endpoint.queue())) {
+            return mode != ApplyMode.DRY_RUN;
+        }
+        if (endpoint.declaration().isEmpty() || mode == ApplyMode.DRY_RUN) {
+            return false;
+        }
+        TopologyPlan plan = aceMq.topology().apply(endpoint.declaration().get(), mode);
+        if (plan.hasChanges()) {
+            log.info("listener {} declared ({}):\n{}", endpoint.id(), mode, plan.render());
+        }
+        return true;
+    }
+
     /**
      * Asks the broker whether the queue exists, through the library's topology planner,
      * which asks passively and creates nothing. A queue it would have to create is missing.
      */
     private boolean queueMissing(AceListenerEndpoint endpoint) {
-        if (declaredQueues.contains(endpoint.queue())) {
+        if (declare(endpoint)) {
             return false;
         }
         TopologyPlan plan = aceMq.topology().plan(Topology.define().queue(endpoint.queue()).build());

@@ -16,8 +16,10 @@
 package org.acemq.spring.boot;
 
 import java.lang.reflect.Method;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import org.acemq.amqp.api.Message;
+import org.acemq.amqp.api.Topology;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.ObjectProvider;
@@ -105,7 +107,52 @@ public class AceListenerAnnotationBeanPostProcessor implements BeanPostProcessor
                 takesMessage,
                 bean,
                 beanName,
-                method);
+                method,
+                declaration(listener, queue, id));
+    }
+
+    /**
+     * The topology {@link AceListener#declare()} asks for, built the way an entry under
+     * {@code acemq.topology.queues} is, or null when it asks for none.
+     */
+    private Topology declaration(AceListener listener, String queue, String id) {
+        if (listener.declare().length == 0) {
+            return null;
+        }
+        if (listener.declare().length > 1) {
+            throw new IllegalStateException("@AceListener " + id + " has " + listener.declare().length
+                    + " @AceQueue declarations; a listener declares at most the one queue it consumes");
+        }
+        AceQueue declare = listener.declare()[0];
+        AceMqProperties.Topology.Queue spec = new AceMqProperties.Topology.Queue();
+        spec.setName(queue);
+        spec.setType(declare.type());
+        spec.setDeadLetter(declare.deadLetter());
+        Map<String, Object> arguments = new LinkedHashMap<>();
+        for (String argument : declare.arguments()) {
+            String resolved = resolve(argument);
+            int equals = resolved.indexOf('=');
+            if (equals <= 0) {
+                throw new IllegalStateException("@AceListener " + id + " declares queue '" + queue
+                        + "' with argument \"" + resolved + "\", which is not name=value");
+            }
+            arguments.put(resolved.substring(0, equals).trim(), argumentValue(resolved.substring(equals + 1).trim()));
+        }
+        spec.setArguments(arguments);
+        Topology.Builder builder = Topology.define();
+        AceMqTopologies.queue(builder, spec, "@AceListener " + id + " declare arguments");
+        return builder.build();
+    }
+
+    /** A whole number as a number and true/false as a boolean, which is what the broker expects. */
+    private static Object argumentValue(String value) {
+        if (value.matches("-?\\d{1,18}")) {
+            return Long.valueOf(value);
+        }
+        if ("true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value)) {
+            return Boolean.valueOf(value);
+        }
+        return value;
     }
 
     private Class<?> messagePayloadType(MethodParameter parameter, Method method) {
