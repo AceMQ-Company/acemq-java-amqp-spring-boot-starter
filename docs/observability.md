@@ -161,10 +161,57 @@ of nothing with no thread behind it. The `traceparent` header survives the retry
 the four spans stay in one trace; `acemq.consume.attempts` is the meter that says how many there
 were.
 
+## The acemq endpoint
+
+With Actuator on the classpath the starter registers an `acemq` endpoint. Like every
+endpoint but health it is served over HTTP only once exposed:
+
+```yaml
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,acemq
+```
+
+`GET /actuator/acemq` lists every `@AceListener` by id; `GET /actuator/acemq/{id}` is one.
+
+```json
+{
+  "listeners": {
+    "orders": {
+      "queue": "orders.new",
+      "bean": "orderListener",
+      "state": "running",
+      "autoStartup": true,
+      "concurrency": 4,
+      "prefetch": 40,
+      "counters": { "inFlight": 3, "acknowledged": 1180, "rejected": 2, "retried": 17 }
+    }
+  }
+}
+```
+
+`concurrency` and `prefetch` are what the running group has — after a `scaleTo`, the new
+size — or what the listener is configured with when it is stopped. `counters` belong to the
+listener's consumers since it last started, and are `null` while it is stopped.
+
+`POST /actuator/acemq/{id}` with `{"state": "stopped"}` stops the listener: it stops taking
+messages, waits up to `acemq.listener.shutdown-timeout` for the ones in flight, and closes.
+`{"state": "running"}` starts it again — or starts one registered with
+`autoStartup = "false"`, or one left stopped by `acemq.listener.missing-queue: warn`. Starting
+asks the broker whether the queue exists first and answers 400, naming the queue, when it
+does not.
+
+Writes are allowed unless `management.endpoint.acemq.access: read-only` says otherwise, which
+is worth setting wherever the management port is reachable by more people than should be
+able to stop consumption. The endpoint has the same shape on Spring Boot 3 and 4.
+
 ## Listener counters
 
 `AceListenerRegistry` hands out the running `ConsumerGroup` for each listener id, and the
-group carries counters that are per-listener rather than per-application:
+group carries counters that are per-listener rather than per-application — the same ones the
+endpoint above reports:
 
 ```java
 listeners.get("orders").ifPresent(group -> {

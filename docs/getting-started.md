@@ -14,6 +14,31 @@ docker run -d --name rabbit \
 The management UI is at <http://localhost:15672>, guest/guest. Worth having open: every
 queue and connection on this page shows up there.
 
+**Or let Spring Boot start it.** With `spring-boot-docker-compose` as a dependency and a
+`compose.yaml` next to the application, Boot starts the broker as the application starts and
+the starter connects to it — no `acemq.url` needed:
+
+```xml
+<dependency>
+  <groupId>org.springframework.boot</groupId>
+  <artifactId>spring-boot-docker-compose</artifactId>
+  <optional>true</optional>
+</dependency>
+```
+
+```yaml
+# compose.yaml
+services:
+  rabbitmq:
+    image: rabbitmq:4-management
+    ports: ['5672', '15672']
+```
+
+Any service whose image is `rabbitmq` is picked up, or any service labelled
+`org.springframework.boot.service-connection: rabbitmq`. Credentials and the virtual host come
+from its `RABBITMQ_DEFAULT_USER`, `RABBITMQ_DEFAULT_PASS` and `RABBITMQ_DEFAULT_VHOST`, and
+default to the image's `guest`/`guest` and `/`.
+
 ## The dependency
 
 AceMQ is not on Maven Central before 1.0, so the repository is declared as well as the

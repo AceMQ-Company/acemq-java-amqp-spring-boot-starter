@@ -151,20 +151,37 @@ was meant.
 
 ```java
 @Testcontainers
+@SpringBootTest
 class OrdersIT {
 
     @Container
+    @ServiceConnection
     static final RabbitMQContainer BROKER = new RabbitMQContainer("rabbitmq:4-management");
-
-    @DynamicPropertySource
-    static void broker(DynamicPropertyRegistry registry) {
-        registry.add("acemq.url", BROKER::getAmqpUrl);
-        registry.add("acemq.username", BROKER::getAdminUsername);
-        registry.add("acemq.password", BROKER::getAdminPassword);
-    }
 
     @Test
     void roundTrips() { }
+}
+```
+
+`@ServiceConnection` needs `spring-boot-testcontainers` as a test dependency. It hands the
+starter an `AceMqConnectionDetails` with the container's address and admin credentials, which
+take the place of `acemq.url`, `acemq.username`, `acemq.password` and `acemq.virtual-host`;
+every other `acemq.*` property still applies. The container is matched by its image name,
+`rabbitmq`, so a `GenericContainer` running that image works as well as `RabbitMQContainer`,
+and `@ServiceConnection("rabbitmq")` names a renamed image. The same holds on Boot 3 and
+Boot 4.
+
+If Spring AMQP is on the classpath too, the same annotation also supplies its
+`RabbitConnectionDetails`; the two are independent.
+
+Without `spring-boot-testcontainers`, a `@DynamicPropertySource` does the same job:
+
+```java
+@DynamicPropertySource
+static void broker(DynamicPropertyRegistry registry) {
+    registry.add("acemq.url", BROKER::getAmqpUrl);
+    registry.add("acemq.username", BROKER::getAdminUsername);
+    registry.add("acemq.password", BROKER::getAdminPassword);
 }
 ```
 

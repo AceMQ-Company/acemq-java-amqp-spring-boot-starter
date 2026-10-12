@@ -176,6 +176,30 @@ Draining is not the same as emptying the queue. A listener stopped with a backlo
 backlog; what it drains is the messages already inside handlers. Everything else stays on
 the queue.
 
+## A queue that does not exist
+
+A listener on a queue nobody created is caught as the application starts, not at the
+broker's first refusal:
+
+```
+@AceListener orders (bean 'orderListener', method onOrder) listens on queue 'orders.nwe', which does not exist
+Declare the queue under acemq.topology.queues, create it on the broker, or set acemq.listener.missing-queue=warn to start without these listeners.
+```
+
+The check runs when listeners start, which is after the declared topology has been applied
+and after every bean that declares a queue in its own initialisation has run. A queue under
+`acemq.topology.queues` is taken as provided for and not asked about — unless
+`acemq.topology.apply` is `dry-run`, which creates nothing. Every other queue is asked about
+passively: nothing is created, and an existing queue is not changed whatever its type or
+arguments. Every missing queue is named in the one failure, so three typos cost one restart.
+
+With `acemq.listener.missing-queue: warn` the application starts, each missing queue is
+logged as a warning, and those listeners stay stopped. Start one later with
+`registry.start("orders")`, or through the [actuator endpoint](observability.md#the-acemq-endpoint);
+both check the queue again and refuse while it is still missing.
+
+A listener with `autoStartup = "false"` is not checked until it is started.
+
 ## The registry
 
 Inject `AceListenerRegistry` to reach a running listener:
@@ -214,7 +238,7 @@ Two things are not on it, and are worth knowing before looking for them.
 stop and start every consumer on the connection at once, which is the right tool for shedding
 load and the wrong one for quietening a single noisy listener. `scaleTo(1)` is the floor —
 `scaleTo(0)` is refused with "a group needs at least one consumer" — so the way to stop one
-listener entirely is to register it with `autoStartup = "false"` and start it when wanted.
+listener entirely is `registry.stop("id")`, and `registry.start("id")` to resume it.
 
 Note also that scaling **down** blocks: the consumers being removed are drained first, up to
 `drainTimeout`. A `scaleTo` that returned instantly while abandoning work in the background would
@@ -228,7 +252,9 @@ Every listener is a group, even at concurrency one. One type means one set of co
 one shutdown path, and a group of one costs nothing.
 
 A listener registered with `autoStartup = "false"` is not running; `registry.start("id")`
-starts it.
+starts it. `registry.stop("id")` stops one — draining it first, as shutdown does — and
+`start` brings it back. The [`acemq` actuator endpoint](observability.md#the-acemq-endpoint)
+calls the same two methods.
 
 ## There is no template
 

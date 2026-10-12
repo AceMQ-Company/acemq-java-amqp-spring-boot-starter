@@ -9,6 +9,69 @@ release train as much as it tracks AceMQ's.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-12
+
+### Added
+
+- **A listener on a queue that does not exist fails the startup**, with the listener, its
+  bean, its method and the queue named, instead of starting and failing at the broker's
+  first consume. Every missing queue is reported in the one failure. The check runs as
+  listeners start — after `acemq.topology` has been applied, so a queue declared there is not
+  asked about unless `acemq.topology.apply` is `dry-run` — and asks the broker passively,
+  creating and changing nothing. **`acemq.listener.missing-queue`** chooses: `fail` (the
+  default) or `warn`, which logs each missing queue and leaves those listeners stopped until
+  they are started by id. A listener with `autoStartup = "false"` is checked when it is
+  started.
+
+  This is a change in behaviour for an application that starts with a listener on a queue
+  something else creates later; `acemq.listener.missing-queue: warn` restores starting, and
+  the listener can then be started once the queue exists.
+- **Docker Compose and Testcontainers service connections.** A new `AceMqConnectionDetails`
+  (a Spring Boot `ConnectionDetails`) carries the broker's URL, username, password and
+  virtual host, and the auto-configuration connects with it. By default it is read from
+  `acemq.*`; with `spring-boot-docker-compose`, a Compose service whose image is `rabbitmq`
+  supplies it, and with `spring-boot-testcontainers`, a container running `rabbitmq` and
+  annotated `@ServiceConnection` does — no `acemq.url` and no `@DynamicPropertySource`.
+  Credentials come from `RABBITMQ_DEFAULT_USER` and `RABBITMQ_DEFAULT_PASS`. Everything else
+  under `acemq.*` still applies.
+
+  It is the starter's own type rather than Spring Boot's `RabbitConnectionDetails`: that one
+  belongs to Spring AMQP's auto-configuration, is in a different package on Boot 3 and Boot 4,
+  needs Spring AMQP on the classpath, and is bound to `spring.rabbitmq.*`. When Spring AMQP
+  is present as well, one `@ServiceConnection` supplies both.
+- **An `acemq` actuator endpoint.** `GET /actuator/acemq` lists every `@AceListener` with its
+  queue, bean, state (`running` or `stopped`), concurrency, prefetch and its consumers'
+  counters — in flight, acknowledged, rejected, retried; `GET /actuator/acemq/{id}` is one.
+  `POST /actuator/acemq/{id}` with `{"state": "stopped"}` or `{"state": "running"}` stops a
+  listener (draining it first, up to `acemq.listener.shutdown-timeout`) or starts it, and
+  `management.endpoint.acemq.access: read-only` refuses those writes. Exposed like any other
+  endpoint, through `management.endpoints.web.exposure.include`.
+- **`AceListenerRegistry.stop(id)`**, the other half of `start(id)`: drains one listener and
+  closes it, leaving it registered so `start(id)` brings it back. `start(id)` now checks that
+  the queue exists first. `AceListenerEndpoint.beanName()` and `method()` say where a listener
+  was declared.
+
+All three work unchanged on Spring Boot 3.5 and 4.x from the shared auto-configuration
+module: the actuator endpoint API, `@ConditionalOnAvailableEndpoint`, `ConnectionDetails` and
+the Docker Compose and Testcontainers factory APIs kept their packages and signatures in
+Boot 4, unlike the health contributor API.
+
+### Changed
+
+- The build compiles with `-parameters`, which the endpoint's write operation needs to bind
+  `state` from the request body by name.
+
+### Documentation
+
+- [Tutorial 4](docs/tutorial-observability.md) uses the `acemq` endpoint in place of the
+  hand-written `/listeners` controller, and shows stopping and starting a listener.
+- [Testing](docs/testing.md) and [Tutorial 5](docs/tutorial-testing.md) use
+  `@ServiceConnection`; [Getting started](docs/getting-started.md) shows Docker Compose.
+- [Listeners](docs/listeners.md#a-queue-that-does-not-exist),
+  [Observability](docs/observability.md#the-acemq-endpoint) and
+  [Configuration](docs/configuration.md) cover the missing-queue check, the endpoint, and
+  service connections.
+
 ## [0.2.2] - 2026-10-12
 
 ### Changed

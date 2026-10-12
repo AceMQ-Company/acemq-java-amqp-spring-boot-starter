@@ -142,39 +142,60 @@ unclean shutdown.
 
 ## Per-listener counters
 
-Metrics are per queue. When the question is *which listener*, ask the registry:
+Metrics are per queue. When the question is *which listener*, ask the `acemq` actuator
+endpoint. It needs nothing but exposing — add it to the list from the start of this
+tutorial:
 
-```java
-@RestController
-class ListenerController {
-
-    private final AceListenerRegistry listeners;
-
-    ListenerController(AceListenerRegistry listeners) {
-        this.listeners = listeners;
-    }
-
-    @GetMapping("/listeners")
-    Map<String, Object> listeners() {
-        Map<String, Object> out = new LinkedHashMap<>();
-        listeners.running().forEach((id, group) -> out.put(id, Map.of(
-                "queue", group.queue(),
-                "consumers", group.size(),
-                "prefetch", group.prefetch(),
-                "acknowledged", group.acknowledged(),
-                "rejected", group.rejected(),
-                "retried", group.retried(),
-                "inFlight", group.inFlight())));
-        return out;
-    }
-}
+```yaml
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus,acemq
 ```
 
 ```bash
-curl -s localhost:8080/listeners | jq
+curl -s localhost:8080/actuator/acemq | jq
 ```
 
-The same object can throttle a listener that is overwhelming a downstream:
+```json
+{
+  "listeners": {
+    "orderListener#onOrder": {
+      "queue": "orders.new",
+      "bean": "orderListener",
+      "state": "running",
+      "autoStartup": true,
+      "concurrency": 1,
+      "prefetch": 100,
+      "counters": { "inFlight": 0, "acknowledged": 2, "rejected": 0, "retried": 4 }
+    }
+  }
+}
+```
+
+`/actuator/acemq/orderListener%23onOrder` is the one listener (the `#` in a default id is
+`%23` in a URL; an explicit `@AceListener(id = "orders")` avoids that). The counters are the
+listener's consumers' own, since the listener last started; `counters` is `null` while it
+is stopped.
+
+The endpoint can also stop a listener — it stops taking messages, finishes the ones in
+flight, and closes — and start it again:
+
+```bash
+curl -s -X POST localhost:8080/actuator/acemq/orderListener%23onOrder \
+     -H 'Content-Type: application/json' -d '{"state":"stopped"}' | jq .state
+# ... the downstream recovers ...
+curl -s -X POST localhost:8080/actuator/acemq/orderListener%23onOrder \
+     -H 'Content-Type: application/json' -d '{"state":"running"}' | jq .state
+```
+
+Stopping waits up to `acemq.listener.shutdown-timeout` for the messages in flight, so the
+request can take that long. If writes from the management port are more than you want,
+`management.endpoint.acemq.access: read-only` keeps the reads and refuses the writes.
+
+For finer control than stop and start, the registry hands out the running consumer group,
+which can throttle a listener that is overwhelming a downstream:
 
 ```java
 listeners.get("orderListener#onOrder").ifPresent(group -> {

@@ -21,6 +21,10 @@ Spring's configuration metadata.
 | `acemq.max-outstanding-publishes` | `10000` | Upper bound on unconfirmed publishes in flight |
 | `acemq.format` | `json` | Default codec: json, xml, yaml, toml, avro, protobuf, text, bytes |
 
+**A service connection replaces the first four.** When Docker Compose support or a
+Testcontainers `@ServiceConnection` starts the broker, `url`, `username`, `password` and
+`virtual-host` come from it — see [Service connections](#service-connections).
+
 **Credentials in the URL survive.** Setting neither `username` nor `password` leaves
 whatever is in `amqp://user:pass@host` alone. This is a property the mapping is tested for,
 because the natural implementation passes two nulls through and quietly connects as a guest,
@@ -109,6 +113,7 @@ These are the defaults; every `@AceListener` can override the first three.
 | `acemq.listener.auto-startup` | `true` | Start listeners with the application context |
 | `acemq.listener.shutdown-timeout` | `30s` | How long shutdown waits for in-flight handlers |
 | `acemq.listener.requeue-on-failure` | `false` | Requeue a failed message rather than dead-lettering it |
+| `acemq.listener.missing-queue` | `fail` | A listener whose queue does not exist at startup: `fail` the startup, or `warn` and leave that listener stopped |
 
 **Prefetch 100 is a starting point, not an answer.** The right number is a function of
 handler time and message size, and the only way to find it is to measure —
@@ -117,6 +122,12 @@ exists for exactly that.
 
 **`shutdown-timeout` is the difference between a clean redeploy and a burst of
 duplicates.** A message still in a handler when the connection closes is redelivered.
+
+**`missing-queue` is checked once, as listeners start** — after the declared topology has
+been applied, so a queue under `acemq.topology.queues` is never asked about (except with
+`apply: dry-run`, which creates nothing). Any other queue is asked about passively, and every
+missing one is named in a single startup failure. [Listeners](listeners.md#a-queue-that-does-not-exist)
+has the detail.
 
 ## Retries
 
@@ -157,6 +168,24 @@ queue that needs a different one is a `ConsumerGroup` bean —
 | Property | Default | What it does |
 |---|---|---|
 | `management.health.acemq.enabled` | `true` | Register the health indicator |
+
+## The actuator endpoint
+
+| Property | Default | What it does |
+|---|---|---|
+| `management.endpoints.web.exposure.include` | `health` | Add `acemq` to serve the listener endpoint at `/actuator/acemq` |
+| `management.endpoint.acemq.access` | `unrestricted` | `read-only` keeps the listing and refuses stop and start; `none` removes the endpoint |
+
+Both are Spring Boot's own properties, applied to this starter's endpoint;
+[Observability](observability.md#the-acemq-endpoint) describes what it returns.
+
+## Service connections
+
+With Spring Boot's Docker Compose support or a Testcontainers `@ServiceConnection`, the
+broker's address comes from the container and `acemq.url`, `acemq.username`,
+`acemq.password` and `acemq.virtual-host` are not needed — and are ignored if set. Everything
+else under `acemq.*` still applies. [Testing](testing.md#with-a-broker) and
+[Getting started](getting-started.md#a-broker) show both.
 
 Actuator's own `management.endpoint.health.show-details` decides whether the details
 described in [Observability](observability.md) are visible over HTTP, and

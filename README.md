@@ -108,6 +108,8 @@ coordinate, and the autoconfiguration, the health indicator for your Boot line a
 | `AceListenerRegistry` | Always | Starts and stops `@AceListener` methods; hand it a listener id to scale, pause or read counters |
 | `AceMqTopologyInitializer` | Always | Applies `acemq.topology`, and does nothing when nothing is declared |
 | `AceMqHealthIndicator` | Actuator on the classpath | Reports the connection under `/actuator/health`; Boot 3 and Boot 4 each have their own |
+| `AceMqEndpoint` | Actuator on the classpath, `acemq` exposed | `/actuator/acemq`: every listener's queue, state and counters, and stop or start one |
+| `AceMqConnectionDetails` | Always | The broker's address from `acemq.*`, or from Docker Compose or a Testcontainers `@ServiceConnection` when one supplies it |
 
 Every one is `@ConditionalOnMissingBean`. Define your own `AceMq` and the rest of the
 starter keeps working against it, because everything else takes the connection as a

@@ -134,6 +134,11 @@ production. Add Testcontainers:
 </dependencyManagement>
 
 <dependency>
+  <groupId>org.springframework.boot</groupId>
+  <artifactId>spring-boot-testcontainers</artifactId>
+  <scope>test</scope>
+</dependency>
+<dependency>
   <groupId>org.testcontainers</groupId>
   <artifactId>rabbitmq</artifactId>
   <scope>test</scope>
@@ -152,15 +157,11 @@ production. Add Testcontainers:
 @SpringBootTest
 class OrdersIT {
 
+    // @ServiceConnection is what points the application at the container: the starter
+    // takes the address and the admin credentials from it, so no acemq.url is needed.
     @Container
+    @ServiceConnection
     static final RabbitMQContainer BROKER = new RabbitMQContainer("rabbitmq:4-management");
-
-    @DynamicPropertySource
-    static void broker(DynamicPropertyRegistry registry) {
-        registry.add("acemq.url", BROKER::getAmqpUrl);
-        registry.add("acemq.username", BROKER::getAdminUsername);
-        registry.add("acemq.password", BROKER::getAdminPassword);
-    }
 
     @Autowired AceMq mq;
     @Autowired OrderListener listener;

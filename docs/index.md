@@ -79,6 +79,12 @@ Concretely, it gives an application:
   shutdown.
 - **Metrics** through whatever `MeterRegistry` the application already has.
 - **Health** under `/actuator/health`, when Actuator is on the classpath.
+- **An `acemq` actuator endpoint** listing every listener with its queue, state and counters,
+  and stopping or starting one.
+- **A startup that fails** when a listener's queue does not exist, naming the listener and
+  the queue.
+- **Service connections**: a `rabbitmq` service in Docker Compose, or a Testcontainers
+  container with `@ServiceConnection`, supplies the broker's address.
 
 ## What it is not
 
@@ -113,7 +119,8 @@ into an application. The library is Java 11 bytecode, so a Boot 2.7 application 
 ### One artifact, both Boot lines
 
 Everything except health is source-compatible across the two lines, so the auto-configuration
-is one module. Health is not: Boot 4 moved the contributor API out of `spring-boot-actuator`
+is one module. That includes the `acemq` actuator endpoint and the Docker Compose and
+Testcontainers service connections: their Boot APIs kept their packages in Boot 4. Health is not: Boot 4 moved the contributor API out of `spring-boot-actuator`
 (`org.springframework.boot.actuate.health`) into `spring-boot-health`
 (`org.springframework.boot.health.contributor`), and the two `AbstractHealthIndicator`
 classes share no ancestor.
