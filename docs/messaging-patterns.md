@@ -85,6 +85,19 @@ counted in `requester.unmatched()`, which together with `timedOut()` is the pair
 a gauge. A rising `unmatched` means the timeout is too short rather than that the responder is
 broken.
 
+**A responder that fails says so.** When the responder's function throws, it replies with the
+failure in the `acemq-error` header (`ExceptionType: message`) and rejects the request rather
+than retrying it, and the requester throws `ResponderFailedException` at once — from
+`request(...)`, or as the cause of the failed `requestAsync` future — instead of waiting out the
+timeout. So a timeout now means no responder answered, and a `ResponderFailedException` means
+one did and failed; the two want different handling, and a retry helps only the first. This
+holds across languages: a Go, Python or Ruby responder's failure arrives the same way. Before
+0.3.1 (`acemq-java-amqp` 0.7.15) a failing Java responder sent nothing and the caller saw a
+timeout.
+
+The requester's reply queue declares no `.dlq` or `.parked` queue: a reply nobody is waiting
+for is counted in `unmatched`, not kept.
+
 **A blocking request from a web request thread is a thread held for the timeout.** Two seconds
 under load is a thread pool. `requestAsync` and a `CompletableFuture`-returning controller
 method, or a virtual-thread executor, are the ways out.

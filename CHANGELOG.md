@@ -9,6 +9,36 @@ release train as much as it tracks AceMQ's.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-13
+
+### Changed
+
+- **A publish into a blocked broker is refused at once.** `acemq.blocked-timeout` now
+  defaults to `0s`, from `30s`, matching `acemq-java-amqp` 0.7.15: while the broker is
+  blocking publishes for a memory or disk alarm, `send` throws `ConnectionBlockedException`
+  straight away, with nothing written (`mayHaveBeenPublished()` is `false`), so the message
+  can be sent again once the alarm clears. The first publish into a new alarm fails within
+  `acemq.confirm-timeout` as possibly published. **Migration:** to keep the old wait, set
+  `acemq.blocked-timeout: 30s`. The health indicator is unchanged: a blocked broker is still
+  reported up, with `blocked: true` and the reason.
+- Builds on `acemq-java-amqp` 0.7.15, which brings Micrometer 1.17.1, OpenTelemetry 1.66
+  and amqp-client 5.37.0.
+
+### Added
+
+- **A failing responder reaches the caller as `ResponderFailedException`.** When a
+  `Responder`'s function throws, the `Requester` now throws `ResponderFailedException` at
+  once, carrying the responder's error, instead of timing out. Failures cross between Java
+  and Go, Python or Ruby services the same way.
+- `Message.redelivered()`, the broker's redelivered flag, on a message a listener receives.
+
+### Fixed
+
+- **A broker URL ending in `/`** (`acemq.url: amqp://host:5672/`) connects to the default
+  virtual host instead of being refused.
+- **A `Requester` bean no longer leaves a `.dlq` and a `.parked` queue behind** for its reply
+  queue on every restart.
+
 ## [0.3.0] - 2026-10-12
 
 ### Added

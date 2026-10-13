@@ -27,6 +27,13 @@ import org.junit.jupiter.api.Test;
 class AceMqConnectionsTest {
 
     @Test
+    void refusesAPublishIntoABlockedBrokerAtOnceByDefault() {
+        ConnectionConfig config = AceMqConnections.from(new AceMqProperties());
+
+        assertThat(config.blockedTimeout()).isEqualTo(Duration.ZERO);
+    }
+
+    @Test
     void carriesEveryTimeout() {
         AceMqProperties properties = new AceMqProperties();
         properties.setUrl("amqp://broker:5672");

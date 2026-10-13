@@ -12,7 +12,7 @@ apply, no container.
 <dependency>
   <groupId>org.acemq</groupId>
   <artifactId>acemq-amqp-test</artifactId>
-  <version>0.7.14</version>
+  <version>0.7.15</version>
   <scope>test</scope>
 </dependency>
 ```

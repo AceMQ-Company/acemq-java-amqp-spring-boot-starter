@@ -16,7 +16,7 @@ Spring's configuration metadata.
 | `acemq.client-name` | `spring.application.name` | Connection name in the broker's management UI |
 | `acemq.connection-timeout` | `10s` | TCP and protocol handshake |
 | `acemq.confirm-timeout` | `30s` | How long a publish waits for its confirm before failing |
-| `acemq.blocked-timeout` | `30s` | How long publishing blocks when the broker has applied back pressure |
+| `acemq.blocked-timeout` | `0s` | How long a publish waits for a blocked broker to resume before it is refused. Zero refuses at once; `30s` was the default before 0.3.1 |
 | `acemq.publisher-confirms` | `true` | Publisher confirms for your publishes. The library's own publishes on your behalf (retry, DLQ and park, outbox relay, replay, scheduler, pipeline and routing-slip hops) are always confirmed |
 | `acemq.max-outstanding-publishes` | `10000` | Upper bound on unconfirmed publishes in flight |
 | `acemq.format` | `json` | Default codec: json, xml, yaml, toml, avro, protobuf, text, bytes |

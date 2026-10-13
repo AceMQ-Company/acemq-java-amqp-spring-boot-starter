@@ -190,28 +190,44 @@ have the collection in hand. Reach for the futures instead when the publishes do
 together, or when you need to know exactly which of them failed — which `sendAll` does not
 tell you.
 
-Note that `sendAsync` is asynchronous about the *confirm*, not about the send. A publish onto
-a blocked connection, or one that has reached `max-outstanding-publishes`, still waits in the
-calling thread; see below.
+Note that `sendAsync` is asynchronous about the *confirm*, not about the send. A publish that
+has reached `max-outstanding-publishes`, or one onto a blocked connection with a non-zero
+`blocked-timeout`, still waits in the calling thread; see below.
 
 ## Back pressure and blocked connections
 
 A broker running short of memory or disk stops reading from its publishers. This is a
 RabbitMQ feature, not a fault: it is how the broker protects itself from a producer that is
-faster than its consumers. From the publishing side it looks like `send` not returning.
+faster than its consumers.
 
-Two properties bound how long that lasts:
+Two properties decide what a publisher does about it:
 
 | Property | Default | What it does |
 |---|---|---|
-| `acemq.blocked-timeout` | `30s` | How long a publish waits on a blocked connection before failing |
+| `acemq.blocked-timeout` | `0s` | How long a publish waits for a blocked broker to resume before it is refused |
 | `acemq.max-outstanding-publishes` | `10000` | Unconfirmed publishes allowed in flight at once, on the asynchronous path |
 
-When the connection is blocked, a publish waits up to `blocked-timeout` and then throws
-`ConnectionBlockedException`, whose message names the broker's own reason — `memory` or
-`disk`. While the connection is blocked, `confirm-timeout` is deliberately not applied: a
-broker under a resource alarm is not a slow broker, and failing the message would not help it
-recover. The whole wait is bounded by `blocked-timeout` instead.
+**A publish into a blocked broker is refused at once.** While the broker is blocking
+publishes, `send` throws `ConnectionBlockedException`, whose message names the broker's own
+reason — `memory` or `disk` — and whose `mayHaveBeenPublished()` is `false`: nothing was
+written, so the message can be sent again once the alarm clears, without a duplicate. The
+publish is counted as refused, not failed. The one exception is the first publish into a new
+alarm, written before the broker said it was blocked: that one fails within
+`confirm-timeout` as possibly published, because the broker may have it.
+
+**To wait instead,** give `blocked-timeout` a length. A publish then waits up to that long for
+the alarm to clear and is refused only after it; `confirm-timeout` is not applied while
+waiting, because a broker under a resource alarm is not a slow broker:
+
+```yaml
+acemq:
+  blocked-timeout: 30s
+```
+
+**Changed in 0.3.1.** The default was `30s`, a wait, until 0.3.1, which follows
+`acemq-java-amqp` 0.7.15 in refusing at once, as the Python, .NET and Ruby libraries do. An
+application that relied on `send` riding out a short alarm sets `blocked-timeout: 30s` to
+keep that behaviour.
 
 `max-outstanding-publishes` is the only back pressure an asynchronous publisher has. The slot
 is taken *before* the message is written, and a `sendAsync` or `sendAll` that finds no slot
@@ -220,11 +236,12 @@ is not keeping up; publish more slowly rather than buffering more". Without that
 caller publishing faster than the broker confirms accumulates unconfirmed messages until the
 process dies, which looks exactly like throughput right up to the moment it does not.
 
-Both defaults are deliberately survivable rather than fast. The alternative to a bound is an
+Both defaults are deliberately survivable rather than fast: a refusal the caller can see and
+retry, and a bound on what is held in memory. The alternative to a bound is an
 application that is killed for memory, at which point the messages are gone and there is
 nothing left to say how many there were.
 
-A service can ask, rather than wait:
+A service can ask before it publishes:
 
 ```java
 @Service

@@ -71,8 +71,12 @@ public class AceMqProperties {
     /** How long a publish waits for its confirm before failing. */
     private Duration confirmTimeout = Duration.ofSeconds(30);
 
-    /** How long publishing blocks when the broker has applied back pressure. */
-    private Duration blockedTimeout = Duration.ofSeconds(30);
+    /**
+     * How long a publish waits for a blocked broker (a memory or disk alarm) to resume before
+     * it is refused with ConnectionBlockedException. Zero, the default, refuses at once and
+     * writes nothing; set 30s to keep the wait that was the default before 0.3.1.
+     */
+    private Duration blockedTimeout = Duration.ofSeconds(0);
 
     /**
      * Publisher confirms. On, and turning them off means a successful send no longer means
